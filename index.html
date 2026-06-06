@@ -1,0 +1,2119 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Machine Game Editor</title>
+<style>
+  :root{
+    --bg:#070A0F;
+    --panel:rgba(10,14,22,.72);
+    --panel2:rgba(10,14,22,.50);
+    --stroke:rgba(0,255,213,.22);
+    --ui:#00ffd5;
+    --txt:#eaffff;
+    --muted:rgba(234,255,255,.75);
+    --danger:#ff2b2b;
+
+    /* ЭСТЕТИКА: Неоновые темы для разделов */
+    --th-tasks:   #FFB347; 
+    --th-look:    #FF69B4; 
+    --th-gears:   #00FA9A; 
+    --th-screens: #00FFFF; 
+    --th-audio:   #DDA0DD; 
+    --th-export:  #87CEFA; 
+
+    /* ЭСТЕТИКА: Оттенки для мелкого текста */
+    --lbl-tasks:   #FFE4B5;
+    --lbl-look:    #FFB6C1;
+    --lbl-gears:   #98FB98;
+    --lbl-screens: #1E90FF; 
+    --lbl-audio:   #E6E6FA;
+  }
+  html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; background:var(--bg); color:var(--txt); overflow:hidden;}
+  *{box-sizing:border-box;}
+  a{color:var(--ui)}
+  
+  .wrap{position:relative; height:100%; display:grid; grid-template-columns: 420px 1fr; gap:14px; padding:14px;}
+  
+  canvas#stars{position:fixed; inset:0; z-index:0;}
+  .pane{position:relative; z-index:1; border:1px solid var(--stroke); background:linear-gradient(180deg, rgba(10,14,22,.85), rgba(10,14,22,.65)); border-radius:20px; box-shadow:0 0 30px rgba(0,255,213,.08); overflow:hidden; display:flex; flex-direction:column;}
+  
+  .hdr{
+    padding:14px 18px;
+    border-bottom:1px solid rgba(0,255,213,.14);
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+  }
+  .brand{display:flex; align-items:center; gap:12px; min-width:0;}
+  .brandLogo{
+    width:50px; height:50px; flex:0 0 50px;
+    border-radius:14px;
+    background: url('https://img.genially.com/67961b32a116fb001568a75e/673752a5-8d4d-40d1-9b5f-f04ebd91a27c.png') center/contain no-repeat;
+    box-shadow: 0 0 0 2px rgba(0,255,213,.55), 0 0 28px rgba(0,255,213,.18), 0 0 12px rgba(0,255,213,.14) inset;
+    filter: drop-shadow(0 10px 18px rgba(0,0,0,.45));
+  }
+  .brandText{display:flex; flex-direction:column; gap:4px; min-width:0;}
+  .brandText .t1{font-weight:900; letter-spacing:.2px; font-size:14px; color:var(--txt); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .brandText .t2{font-size:12px; color:rgba(234,255,255,.62); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  
+  .tabs{display:flex; flex-wrap:wrap; gap:8px; padding:12px 14px;}
+  .tabBtn{
+    border:2px solid transparent; background:rgba(0,0,0,.35); color:rgba(255,255,255,0.6);
+    padding:8px 12px; border-radius:12px; cursor:pointer; font-weight:800; font-size:13px; transition:all .2s;
+  }
+  .tabBtn:hover{background:rgba(255,255,255,.05);}
+  
+  .tabBtn[data-tab="tasks"].active   { border-color: var(--th-tasks); color: var(--th-tasks); box-shadow: 0 0 16px rgba(255,179,71,0.25); background: rgba(255,179,71,0.1); }
+  .tabBtn[data-tab="look"].active    { border-color: var(--th-look); color: var(--th-look); box-shadow: 0 0 16px rgba(255,105,180,0.25); background: rgba(255,105,180,0.1); }
+  .tabBtn[data-tab="gears"].active   { border-color: var(--th-gears); color: var(--th-gears); box-shadow: 0 0 16px rgba(0,250,154,0.25); background: rgba(0,250,154,0.1); }
+  .tabBtn[data-tab="screens"].active { border-color: var(--th-screens); color: var(--th-screens); box-shadow: 0 0 16px rgba(0,255,255,0.25); background: rgba(0,255,255,0.1); }
+  .tabBtn[data-tab="audio"].active   { border-color: var(--th-audio); color: var(--th-audio); box-shadow: 0 0 16px rgba(221,160,221,0.25); background: rgba(221,160,221,0.1); }
+  .tabBtn[data-tab="export"].active  { border-color: var(--th-export); color: var(--th-export); box-shadow: 0 0 16px rgba(135,206,250,0.25); background: rgba(135,206,250,0.1); }
+
+  .content{padding:0 14px 14px; overflow:auto; height:100%;}
+  .section{display:none; padding-bottom:20px;}
+  .section.active{display:block;}
+  
+  .card{ border-radius:18px; padding:14px; margin-top:14px; background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.05); }
+  
+  #sec_tasks .card   { border-color: rgba(255,179,71,0.2); }
+  #sec_look .card    { border-color: rgba(255,105,180,0.2); }
+  #sec_gears .card   { border-color: rgba(0,250,154,0.2); }
+  #sec_screens .card { border-color: rgba(0,255,255,0.2); }
+  #sec_audio .card   { border-color: rgba(221,160,221,0.2); }
+  #sec_export .card  { border-color: rgba(135,206,250,0.2); }
+
+  .card h3 { font-size:16px; font-weight:900; text-transform:uppercase; letter-spacing:.5px; margin:0 0 14px; }
+  #sec_tasks h3   { color: var(--th-tasks); text-shadow: 0 0 12px rgba(255,179,71,0.5); }
+  #sec_look h3    { color: var(--th-look); text-shadow: 0 0 12px rgba(255,105,180,0.5); }
+  #sec_gears h3   { color: var(--th-gears); text-shadow: 0 0 12px rgba(0,250,154,0.5); }
+  #sec_screens h3 { color: var(--th-screens); text-shadow: 0 0 12px rgba(0,255,255,0.5); }
+  #sec_audio h3   { color: var(--th-audio); text-shadow: 0 0 12px rgba(221,160,221,0.5); }
+  #sec_export h3  { color: var(--th-export); text-shadow: 0 0 12px rgba(135,206,250,0.5); }
+
+  label { display:block; font-size:13px; font-weight:700; margin-bottom:6px; letter-spacing:.2px; }
+  #sec_tasks label   { color: var(--lbl-tasks); text-shadow: 0 0 8px rgba(255,228,181,0.3); }
+  #sec_look label    { color: var(--lbl-look); text-shadow: 0 0 8px rgba(255,182,193,0.3); }
+  #sec_gears label   { color: var(--lbl-gears); text-shadow: 0 0 8px rgba(152,251,152,0.3); }
+  #sec_screens label { color: var(--lbl-screens); text-shadow: 0 0 8px rgba(30,144,255,0.4); } 
+  #sec_audio label   { color: var(--lbl-audio); text-shadow: 0 0 8px rgba(230,230,250,0.3); }
+
+  .row{display:grid; grid-template-columns: 1fr 1fr; gap:10px;}
+  .row3{display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;}
+  
+  input[type="text"], input[type="number"], textarea, select {
+    width:100%; border-radius:10px; border:1px solid rgba(255,255,255,.1);
+    background:rgba(5,8,12,.7); color:var(--txt);
+    padding:10px 12px; outline:none; font-size:13px; transition: .2s;
+  }
+  input[type="text"]:focus, input[type="number"]:focus, textarea:focus, select:focus {
+    border-color: rgba(255,255,255,.4); background:rgba(10,15,22,.9);
+  }
+  input[type="color"] { width:100%; height:40px; border-radius:10px; border:1px solid rgba(255,255,255,.1); background:rgba(5,8,12,.7); padding:4px; outline:none; cursor:pointer;}
+  
+  textarea{min-height:160px; resize:vertical; line-height:1.35;}
+  .help{font-size:12px; color:rgba(234,255,255,.8); margin-top:8px;}
+  .mini{font-size:11px; color:rgba(234,255,255,.65); line-height:1.4;}
+  
+  .btn{
+    border:none; cursor:pointer; border-radius:12px; padding:10px 14px; font-weight:900; font-size: 13px;
+    background:rgba(0,0,0,.25); color:var(--txt); border:1px solid rgba(0,255,213,.28);
+    box-shadow:0 0 18px rgba(0,255,213,.08); transition:.15s;
+  }
+  .btn:hover{transform:translateY(-1px); border-color:rgba(0,255,213,.65); box-shadow:0 0 26px rgba(0,255,213,.12);}
+  .btn.primary{background:rgba(0,255,213,.10);}
+  .btn.danger{border-color:rgba(255,43,43,.45); box-shadow:0 0 18px rgba(255,43,43,.10);}
+  .btn.danger:hover{border-color:rgba(255,43,43,.85); box-shadow:0 0 26px rgba(255,43,43,.14);}
+  .btn.action{border-color:var(--th-tasks); color:var(--th-tasks); box-shadow:0 0 18px rgba(255,179,71,.15);}
+  .btn.action:hover{border-color:#ffcc80; box-shadow:0 0 26px rgba(255,179,71,.25);}
+  
+  .btnRow{display:flex; gap:10px; flex-wrap:wrap;}
+  
+  .previewTop{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; border-bottom:1px solid rgba(0,255,213,.14);}
+  .previewTop .title{font-weight:900; font-size:14px; color:var(--muted);}
+  .previewTop .pill{font-size:12px; padding:4px 10px; border-radius:999px; border:1px solid rgba(0,255,213,.25); background:rgba(0,255,213,.06); transition: 0.2s;}
+  
+  .prevTabs { display:flex; gap:6px; background:rgba(0,0,0,.3); padding:4px; border-radius:10px; border:1px solid rgba(0,255,213,.15); }
+  .ptBtn { background:transparent; border:none; color:var(--muted); padding:6px 12px; border-radius:8px; cursor:pointer; font-size:12px; font-weight:bold; transition:.15s; }
+  .ptBtn.active { background:rgba(0,255,213,.15); color:var(--txt); }
+  .ptBtn:hover:not(.active) { background:rgba(255,255,255,.05); }
+
+  /* Контейнер предпросмотра 16:9 */
+  .preview-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0,0,0,0.2);
+  }
+  iframe#preview {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    max-height: 100%;
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    background: transparent;
+  }
+  
+  .twoLine{display:grid; grid-template-columns: 1fr; gap:10px;}
+  .split{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+  .switch{display:flex; gap:10px; align-items:center; padding:10px; border:1px solid rgba(255,255,255,.1); border-radius:10px; background:rgba(0,0,0,.25); color: var(--txt); font-size: 13px;}
+  .switch input{transform:scale(1.2); margin:0;}
+  .fileRow{display:grid; grid-template-columns: 1fr auto; gap:10px; align-items:end;}
+
+  .math-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 6px; margin-top: 10px; }
+  .math-btn {
+    background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); color: var(--txt);
+    border-radius: 8px; padding: 6px 4px; text-align: center; cursor: pointer; transition: 0.2s;
+    font-family: Arial, sans-serif; font-size: 14px; font-weight: bold;
+  }
+  .math-btn:hover { border-color: var(--th-tasks); color: var(--th-tasks); background: rgba(255,179,71,0.15); transform: translateY(-2px); }
+
+  .footer{
+    padding:10px 14px; color:rgba(234,255,255,.55); font-size:11px;
+    border-top:1px solid rgba(0,255,213,.10); display:flex; justify-content:space-between; gap:10px;
+  }
+  .footer .copy{white-space:nowrap;}
+  
+  .content::-webkit-scrollbar { width: 6px; }
+  .content::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 10px; }
+  .content::-webkit-scrollbar-thumb { background: rgba(0,255,213,0.3); border-radius: 10px; }
+  .content::-webkit-scrollbar-thumb:hover { background: rgba(0,255,213,0.6); }
+
+  /* Окошко вывода кода */
+  #iframeOut {
+    width: 100%; height: 160px; font-size: 12px; color: rgba(255,255,255,0.8); 
+    background: rgba(0,0,0,0.5); border: 1px solid rgba(135,206,250,0.3); 
+    border-radius: 8px; padding: 10px; resize: vertical; margin-bottom: 14px;
+    cursor: text; transition: 0.2s; outline: none; font-family: monospace;
+  }
+  #iframeOut:focus { border-color: var(--th-export); color: #fff; background: rgba(0,0,0,0.8); }
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+
+<div class="wrap">
+  <div class="pane left">
+    
+    <div class="hdr">
+      <div class="brand">
+        <div class="brandLogo" aria-label="English Bootcamp logo"></div>
+        <div class="brandText">
+          <div class="t1">Machine Game Editor</div>
+          <div class="t2">Настройка → предпросмотр → экспорт</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="padding: 10px 14px; border-bottom: 1px solid var(--stroke); display: flex; justify-content: space-between; align-items: center;">
+      <label style="margin:0; font-weight:bold; color: var(--ui);">Language / Язык:</label>
+      <select id="langSelect" style="width: auto; padding: 6px 10px; background: rgba(0,0,0,0.4);">
+        <option value="ru" selected>Русский</option>
+        <option value="en">English</option>
+        <option value="de">Deutsch</option>
+        <option value="fr">Français</option>
+        <option value="es">Español</option>
+      </select>
+    </div>
+
+    <div class="tabs" id="tabs">
+      <button class="tabBtn active" data-tab="tasks">Задания</button>
+      <button class="tabBtn" data-tab="look">Внешний вид</button>
+      <button class="tabBtn" data-tab="gears">Шестерёнки</button>
+      <button class="tabBtn" data-tab="screens">Заставки</button>
+      <button class="tabBtn" data-tab="audio">Аудио</button>
+      <button class="tabBtn" data-tab="export">Экспорт</button>
+    </div>
+
+    <div class="content">
+      <div class="section active" id="sec_tasks">
+       <div class="card">
+          <h3><span id="tasksTitleCount">10</span> заданий (вопрос | прав | неправ...)</h3>
+          <label id="tasksLabel">Список заданий (10 строк)</label>
+          <textarea id="tasksTA"></textarea>
+          
+          <div class="help">Пример: <b>I ___ running. | am | is | are</b> (первый ответ = правильный)</div>
+          
+          <div class="help" style="margin-top:10px; line-height: 1.5;">
+            💡 <b>Перенос строки:</b> Напишите <code>[br]</code> там, где нужно разбить вопрос на 2 строки.
+          </div>
+          <div class="help" id="tasksWarn" style="display:none; margin-top:8px; color:rgba(255,180,180,.95);"></div>
+       </div>
+
+       <div class="card" style="border-color: rgba(255,179,71,0.4); background: rgba(255,179,71,0.02);">
+         <h3 style="color: var(--th-tasks);">Математические формулы (LaTeX)</h3>
+
+         <div class="switch" style="margin-bottom: 12px; border-color: rgba(255,179,71,0.3);">
+           <input id="mathOn" type="checkbox" checked>
+           <div>Формулы включены</div>
+         </div>
+
+         <div class="mini" style="margin-bottom: 14px; font-size: 13px;">
+           <b>Примеры:</b> <code>$x^2$</code> → x² | <code>$\frac{1}{2}$</code> → ½ | <code>$\sqrt{x}$</code> → √x<br>
+           <span style="color: #FFB347;">💡 В нашем редакторе формулы сразу отображаются на экране предпросмотра!</span>
+         </div>
+
+         <label style="color: var(--th-tasks);">Шпаргалка формул</label>
+         <div class="mini" style="margin-bottom: 8px;">Нажмите на кнопку — код скопируется. Вставьте его (Ctrl+V) в список заданий выше. Главное правило: формула должна быть внутри знаков <b>$ ... $</b></div>
+
+         <div class="math-grid" id="mathGrid"></div>
+       </div>
+
+       <div class="card">
+          <h3 id="ttl_baseParams">Базовые параметры</h3>
+          <div class="grid2" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
+            <div>
+              <label id="lbl_taskCount">Кол-во задач:</label>
+              <input type="number" id="taskCount" min="4" max="14" value="6">
+            </div>
+            <div>
+              <label id="lbl_timePerQ">Время (с):</label>
+              <input type="number" id="timePerQ" min="3" max="60" value="10">
+            </div>
+            <div>
+              <label id="lbl_lives">Жизни:</label>
+              <input type="number" id="lives" min="1" max="10" value="3">
+            </div>
+          </div>
+       </div>
+
+       <div class="card" style="border: 2px dashed rgba(255,179,71,0.4); background: rgba(255,179,71,0.05);">
+        <h3 style="color: var(--th-tasks);">✨ Размер и положение вопроса</h3>
+        <div class="mini" style="font-size: 12px; line-height: 1.5; opacity: 1; color: var(--txt);">
+          Настраивается <b>мышкой на экране предпросмотра</b> (вкладка «Игра»)!<br>
+          • Зажмите плашку, чтобы переместить.<br>
+          • Потяните за правый нижний угол, чтобы изменить размер (текст перенесется автоматически).
+        </div>
+       </div>
+
+       <div class="card">
+        <h3>Шрифты и цвета текста</h3>
+        <div class="row">
+            <div>
+              <label>Вопрос — шрифт</label>
+              <select id="qFont">
+                <option value="Arial, system-ui, -apple-system, Segoe UI, Roboto, sans-serif" selected>Arial / System</option>
+                <option value="'Comic Sans MS','Comic Sans',cursive">Comic Sans MS (комикс)</option>
+                <option value="'Trebuchet MS', Trebuchet, Arial, sans-serif">Trebuchet MS</option>
+                <option value="Georgia, 'Times New Roman', serif">Georgia</option>
+                <option value="'Courier New', Courier, monospace">Courier New</option>
+              </select>
+            </div>
+            <div>
+              <label>Вопрос — размер (px)</label>
+              <input id="qFontSize" type="number" min="12" max="48" value="22"/>
+            </div>
+          </div>
+          <div class="row" style="margin-top: 10px;">
+            <div>
+              <label>Вопрос — цвет</label>
+              <input id="qColor" type="color" value="#eaffff"/>
+            </div>
+            <div class="mini" style="align-self:center;">Плашка растягивается по размерам.</div>
+          </div>
+
+          <div class="row" style="margin-top: 14px;">
+            <div>
+              <label>Вопрос — макс. строк</label>
+              <input id="qMaxLines" type="number" min="1" max="6" value="2"/>
+            </div>
+            <div>
+              <label>Запас справа (px)</label>
+              <input id="qReserve" type="number" min="100" max="520" value="320"/>
+            </div>
+          </div>
+
+          <hr style="border:none;border-top:1px solid rgba(255,255,255,.1);margin:16px 0;">
+
+          <div class="row">
+            <div>
+              <label>Ответы — шрифт</label>
+              <select id="aFont">
+                <option value="Arial, system-ui, -apple-system, Segoe UI, Roboto, sans-serif" selected>Arial / System</option>
+                <option value="'Comic Sans MS','Comic Sans',cursive">Comic Sans MS (комикс)</option>
+                <option value="'Trebuchet MS', Trebuchet, Arial, sans-serif">Trebuchet MS</option>
+                <option value="Georgia, 'Times New Roman', serif">Georgia</option>
+                <option value="'Courier New', Courier, monospace">Courier New</option>
+              </select>
+            </div>
+            <div>
+              <label>Ответы — размер (px)</label>
+              <input id="aFontSize" type="number" min="12" max="40" value="18"/>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top: 10px;">
+            <div>
+              <label>Ответы — цвет текста</label>
+              <input id="aColor" type="color" value="#eaffff"/>
+            </div>
+            <div>
+              <label>Цвет подложки (фона)</label>
+              <input id="aBgColor" type="color" value="#000000"/>
+            </div>
+          </div>
+          <div class="row" style="margin-top: 10px;">
+            <div>
+              <label>Прозрачность подложки</label>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <input id="aBgAlpha" type="range" min="0" max="1" step="0.05" value="0.5" style="margin:0; flex:1; accent-color: var(--th-tasks);"/>
+                <span id="aBgAlphaVal" style="font-size:14px; color:var(--txt); width:28px; text-align:right;">0.5</span>
+              </div>
+            </div>
+            <div></div>
+          </div>
+
+          <hr style="border:none;border-top:1px solid rgba(255,255,255,.1);margin:16px 0;">
+
+          <div class="row">
+            <div>
+              <label>Таймер — шрифт</label>
+              <select id="timerFont">
+                <option value="Arial, system-ui, -apple-system, Segoe UI, Roboto, sans-serif" selected>Arial / System</option>
+                <option value="'Comic Sans MS','Comic Sans',cursive">Comic Sans MS (комикс)</option>
+                <option value="'Trebuchet MS', Trebuchet, Arial, sans-serif">Trebuchet MS</option>
+                <option value="Georgia, 'Times New Roman', serif">Georgia</option>
+                <option value="'Courier New', Courier, monospace">Courier New</option>
+              </select>
+            </div>
+            <div>
+              <label>Таймер — размер (px)</label>
+              <input id="timerFontSize" type="number" min="12" max="72" value="38"/>
+            </div>
+          </div>
+          <div class="row" style="margin-top: 10px;">
+            <div>
+              <label>Таймер — цвет</label>
+              <input id="timerColor" type="color" value="#eaffff"/>
+            </div>
+            <div></div>
+          </div>
+       </div>
+      </div>
+
+      <div class="section" id="sec_look">
+        <div class="card">
+          <h3>Цвета и неон</h3>
+          <div class="row">
+            <div>
+              <label>Неон включен</label>
+              <div class="switch">
+                <input id="neonOn" type="checkbox" checked>
+                <div>Вкл/выкл неон</div>
+              </div>
+            </div>
+            <div>
+              <label>Цвет неона (ui)</label>
+              <input id="uiColor" type="color" value="#00ffd5"/>
+            </div>
+          </div>
+          <div class="row" style="margin-top: 14px;">
+            <div>
+              <label>Толщина свечения (px)</label>
+              <input id="uiGlowSize" type="number" min="0" max="60" value="22"/>
+            </div>
+            <div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Фон игры</h3>
+          <div class="row">
+            <div>
+              <label>Режим фона</label>
+              <select id="bgMode">
+                <option value="url" selected>URL картинки</option>
+                <option value="upload">Загрузить свою картинку</option>
+                <option value="color">Цвет (однотонный)</option>
+                <option value="transparent">Прозрачный фон</option>
+              </select>
+            </div>
+            <div>
+              <label>Цвет фона (для режима “Цвет”)</label>
+              <input id="bgColor" type="color" value="#000000"/>
+            </div>
+          </div>
+
+          <div class="twoLine" style="margin-top: 14px;">
+            <div class="fileRow">
+              <div>
+                <label>URL фона (если выбран URL)</label>
+                <input id="bgUrl" type="text" value="https://img.genially.com/67961b32a116fb001568a75e/d58b1f28-a8e9-4bdf-93d2-0e9c18b8588c.png"/>
+              </div>
+              <div>
+                <label>Файл</label>
+                <input id="bgFile" type="file" accept="image/*" style="padding: 10px 8px;"/>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 id="ttl_lookIcons">Иконки и картинки</h3>
+
+          <div class="twoLine">
+            <div class="fileRow">
+              <div>
+                <label>Сердечко (URL)</label>
+                <input id="heartUrl" type="text" value="https://img.genially.com/67961b32a116fb001568a75e/38831aeb-9e51-4c42-9ee7-e7492d707a63.png"/>
+              </div>
+              <div>
+                <label>Файл</label>
+                <input id="heartFile" type="file" accept="image/*" style="padding: 10px 8px;"/>
+              </div>
+            </div>
+          </div>
+          <div class="row" style="margin-top: 10px;">
+            <div>
+              <label id="lbl_heartSize">Размер сердечка (px)</label>
+              <input id="heartSize" type="number" min="15" max="80" value="30"/>
+            </div>
+            <div></div> 
+          </div>
+
+          <div class="twoLine" style="margin-top: 14px;">
+            <div class="fileRow">
+              <div>
+                <label id="lbl_timerUrl">Иконка таймера (URL)</label>
+                <input id="timerUrl" type="text" value="https://img.genially.com/67961b32a116fb001568a75e/51ad5890-ed47-44ef-9748-6c0a95de0bba.png"/>
+              </div>
+              <div>
+                <label>Файл</label>
+                <input id="timerFile" type="file" accept="image/*" style="padding: 10px 8px;"/>
+              </div>
+            </div>
+          </div>
+          <div class="row" style="margin-top: 10px;">
+            <div>
+              <label>Размер иконки таймера (px)</label>
+              <input id="timerIconSize" type="number" min="16" max="100" value="46"/>
+            </div>
+            <div></div> 
+          </div>
+
+          <div class="twoLine" style="margin-top: 14px;">
+            <div class="fileRow">
+              <div>
+                <label>Маркер прогресса (URL)</label>
+                <input id="markerUrl" type="text" value="https://img.genially.com/67961b32a116fb001568a75e/7bff9826-27f1-485e-81a3-e058cd1dab2b.png"/>
+              </div>
+              <div>
+                <label>Файл</label>
+                <input id="markerFile" type="file" accept="image/*" style="padding: 10px 8px;"/>
+              </div>
+            </div>
+          </div>
+
+          <div class="twoLine" style="margin-top: 14px;">
+            <div class="fileRow">
+              <div>
+                <label>Панель вопроса (URL)</label>
+                <input id="qPanelUrl" type="text" value="https://img.genially.com/67961b32a116fb001568a75e/980890bf-3962-4551-8dd2-c399de0accb4.png"/>
+              </div>
+              <div>
+                <label>Файл</label>
+                <input id="qPanelFile" type="file" accept="image/*" style="padding: 10px 8px;"/>
+              </div>
+            </div>
+          </div>
+
+          <div class="twoLine" style="margin-top: 14px;">
+            <div class="fileRow">
+              <div>
+                <label>Шестерёнка (URL)</label>
+                <input id="gearUrl" type="text" value="https://img.genially.com/67961b32a116fb001568a75e/7bff9826-27f1-485e-81a3-e058cd1dab2b.png"/>
+              </div>
+              <div>
+                <label>Файл</label>
+                <input id="gearFile" type="file" accept="image/*" style="padding: 10px 8px;"/>
+              </div>
+            </div>
+          </div>
+
+          <div class="twoLine" style="margin-top: 14px;">
+            <div class="fileRow">
+              <div>
+                <label>Центральная фигура (URL)</label>
+                <input id="centerUrl" type="text" value="https://img.genially.com/67961b32a116fb001568a75e/ba926358-67f4-49a7-913a-84f3df036388.png"/>
+              </div>
+              <div>
+                <label>Файл</label>
+                <input id="centerFile" type="file" accept="image/*" style="padding: 10px 8px;"/>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Автообновление превью</h3>
+          <div class="switch">
+            <input id="autoUpdate" type="checkbox" checked>
+            <div>Автообновление при изменениях</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" id="sec_gears">
+        
+        <div class="card" style="border-color: rgba(0,250,154,0.4); background: rgba(0,250,154,0.05);">
+          <h3 style="color: var(--th-gears);">📐 Размеры и положение композиции</h3>
+          <div class="row">
+            <div>
+              <label>Размер центра (px)</label>
+              <input id="centerSizePx" type="number" min="50" max="600" value="260"/>
+            </div>
+            <div>
+              <label>Размер шестерёнки (px)</label>
+              <input id="gearSizePx" type="number" min="30" max="350" value="148"/>
+            </div>
+          </div>
+          <div class="row" style="margin-top: 14px;">
+            <div>
+              <label>Сдвиг механизма (X)</label>
+              <input id="mechX" type="text" value="50%"/>
+            </div>
+            <div>
+              <label>Сдвиг механизма (Y)</label>
+              <input id="mechY" type="text" value="60%"/>
+            </div>
+          </div>
+          <div class="mini" style="margin-top:12px; color:var(--txt); font-size:12px;">💡 Весь механизм можно двигать единым блоком при помощи мышки прямо на экране предпросмотра (вкладка "Игра")!</div>
+        </div>
+
+        <div class="card">
+          <h3>Настройки вращения</h3>
+          <div class="row">
+            <div>
+              <label>Кол-во шестерёнок</label>
+              <input id="gearCount" type="number" min="2" max="5" value="3"/>
+            </div>
+            <div>
+              <label>Ось вращения</label>
+              <div class="switch">
+                <input id="spinSelf" type="checkbox" checked>
+                <div>Самовращение</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top: 14px;">
+            <div>
+              <label>Скорость орбиты (вокруг)</label>
+              <input id="orbitSpeed" type="number" min="0.1" max="3" step="0.05" value="0.75"/>
+            </div>
+            <div>
+              <label>Скорость “самовращения”</label>
+              <input id="spinSpeed" type="number" min="0" max="3" step="0.05" value="1"/>
+            </div>
+          </div>
+
+          <div class="row3" style="margin-top: 14px;">
+            <div>
+              <label>Подъём (px)</label>
+              <input id="centerLift" type="number" min="-200" max="200" value="49"/>
+            </div>
+            <div>
+              <label>Зазор (px)</label>
+              <input id="gearGap" type="number" min="0" max="40" value="5"/>
+            </div>
+            <div>
+              <label>Радиус K</label>
+              <input id="orbitK" type="number" min="0.6" max="1.2" step="0.01" value="0.80"/>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top: 14px;">
+            <div>
+              <label>Смещение ответа (Y, px)</label>
+              <input id="aShiftY" type="number" min="-80" max="80" value="0"/>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" id="sec_screens">
+        <div class="card">
+          <h3>Тексты заставок</h3>
+          <div class="row">
+            <div>
+              <label>Название игры (title)</label>
+              <input id="gameTitle" type="text" value="Heart of the Stone Machine"/>
+            </div>
+            <div>
+              <label>Текст кнопки "Start"</label>
+              <input id="startBtnText" type="text" value="START"/>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top: 14px;">
+            <div>
+              <label>Старт: заголовок</label>
+              <input id="startTitle" type="text" value="Heart of the Stone Machine"/>
+            </div>
+            <div>
+              <label>Старт: описание</label>
+              <input id="startText" type="text" value="Start the stone mechanism. Choose the correct gear and fill all 10 markers before time runs out."/>
+            </div>
+          </div>
+
+          <hr style="border:none;border-top:1px solid rgba(255,255,255,.1);margin:16px 0;">
+
+          <div class="row">
+            <div>
+              <label>Кнопка "Играть снова"</label>
+              <input id="playAgainText" type="text" value="PLAY AGAIN"/>
+            </div>
+            <div></div>
+          </div>
+
+          <div class="row" style="margin-top: 14px;">
+            <div>
+              <label>Win: заголовок</label>
+              <input id="winTitle" type="text" value="You Win!"/>
+            </div>
+            <div>
+              <label>Win: текст</label>
+              <input id="winText" type="text" value="The stone machine awakens. Well done!"/>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top: 14px;">
+            <div>
+              <label>Time out: заголовок</label>
+              <input id="lostTitle" type="text" value="You Lost!"/>
+            </div>
+            <div>
+              <label>Time out: текст</label>
+              <input id="lostText" type="text" value="Time has stopped the mechanism."/>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top: 14px;">
+            <div>
+              <label>Game Over: заголовок</label>
+              <input id="overTitle" type="text" value="Game Over"/>
+            </div>
+            <div>
+              <label>Game Over: текст</label>
+              <input id="overText" type="text" value="No lives left. Try again!"/>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Победный салют</h3>
+          <div class="row">
+            <div>
+              <label>Тип салюта</label>
+              <select id="fwType">
+                <option value="multi" selected>Разноцветный</option>
+                <option value="single">Однотонный</option>
+                <option value="none">Без салюта (отключить)</option>
+              </select>
+            </div>
+            <div>
+              <label>Цвет (для однотонного)</label>
+              <input id="fwColor" type="color" value="#00ffd5"/>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Шрифты заставок</h3>
+          <div class="row">
+            <div>
+              <label>Title — шрифт</label>
+              <select id="ovTitleFont">
+                <option value="Arial, system-ui, -apple-system, Segoe UI, Roboto, sans-serif" selected>Arial / System</option>
+                <option value="'Comic Sans MS','Comic Sans',cursive">Comic Sans MS (комикс)</option>
+                <option value="'Trebuchet MS', Trebuchet, Arial, sans-serif">Trebuchet MS</option>
+                <option value="Georgia, 'Times New Roman', serif">Georgia</option>
+                <option value="'Courier New', Courier, monospace">Courier New</option>
+              </select>
+            </div>
+            <div>
+              <label>Title — размер (px)</label>
+              <input id="ovTitleSize" type="number" min="18" max="72" value="52"/>
+            </div>
+          </div>
+          <div class="row" style="margin-top: 10px;">
+            <div>
+              <label>Title — цвет</label>
+              <input id="ovTitleColor" type="color" value="#eaffff"/>
+            </div>
+            <div></div>
+          </div>
+
+          <hr style="border:none;border-top:1px solid rgba(255,255,255,.1);margin:16px 0;">
+
+          <div class="row">
+            <div>
+              <label>Текст — шрифт</label>
+              <select id="ovTextFont">
+                <option value="Arial, system-ui, -apple-system, Segoe UI, Roboto, sans-serif" selected>Arial / System</option>
+                <option value="'Comic Sans MS','Comic Sans',cursive">Comic Sans MS (комикс)</option>
+                <option value="'Trebuchet MS', Trebuchet, Arial, sans-serif">Trebuchet MS</option>
+                <option value="Georgia, 'Times New Roman', serif">Georgia</option>
+                <option value="'Courier New', Courier, monospace">Courier New</option>
+              </select>
+            </div>
+            <div>
+              <label>Текст — размер (px)</label>
+              <input id="ovTextSize" type="number" min="12" max="32" value="18"/>
+            </div>
+          </div>
+          <div class="row" style="margin-top: 10px;">
+            <div>
+              <label>Текст — цвет</label>
+              <input id="ovTextColor" type="color" value="#eaffff"/>
+            </div>
+            <div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Фон заставок</h3>
+          <div class="row">
+            <div>
+              <label>Цвет фона оверлея</label>
+              <input id="overlayBg" type="color" value="#000000"/>
+            </div>
+            <div>
+              <label>Прозрачность (0..1)</label>
+              <input id="overlayAlpha" type="number" min="0" max="1" step="0.01" value="0.58"/>
+            </div>
+          </div>
+          <div class="row" style="margin-top: 14px;">
+            <div>
+              <label>Поднять карточку (vh)</label>
+              <input id="overlayLiftVh" type="number" min="-20" max="20" step="0.5" value="-4"/>
+            </div>
+            <div>
+              <label>Кнопка неон при hover</label>
+              <div class="switch">
+                <input id="btnNeonHover" type="checkbox" checked>
+                <div>Вкл</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" id="sec_audio">
+        <div class="card">
+          <h3>Музыка и звуки</h3>
+          <div class="row">
+            <div>
+              <label>Файл музыки (mp3)</label>
+              <input id="musicFile" type="file" accept="audio/mpeg,audio/mp3" style="padding: 10px 8px;"/>
+              <div class="mini">Музыка встраивается прямо в код игры.</div>
+            </div>
+            <div>
+              <label>Громкость музыки</label>
+              <input id="musicVol" type="number" min="0" max="1" step="0.05" value="0.55"/>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top: 14px;">
+            <div>
+              <label>Громкость спецэффектов</label>
+              <input id="sfxVol" type="number" min="0" max="1" step="0.05" value="0.60"/>
+            </div>
+            <div>
+              <label>Громкость “тика” таймера</label>
+              <input id="tickVol" type="number" min="0" max="1" step="0.05" value="0.08"/>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="section" id="sec_export">
+        <div class="card" style="background: rgba(135,206,250,0.05);">
+          <h3>Экспорт и генерация</h3>
+          <p class="mini" style="margin-bottom: 14px; font-size: 13px;">Сначала нажмите <b>«Обновить превью»</b>, чтобы собрать игру. Затем вы можете скопировать код для вставки в Genially или скачать HTML-файл на компьютер.</p>
+          
+          <textarea id="iframeOut" readonly onclick="this.select()" title="Кликните сюда, чтобы выделить весь код, и нажмите Ctrl+C" placeholder="Здесь появится готовый код для вставки в Genially..."></textarea>
+          
+          <div class="btnRow">
+            <button class="btn primary" id="applyBtn">Обновить превью</button>
+            <button class="btn action" id="copyBtn">Скопировать код</button>
+            <button class="btn action" id="downloadBtn">Скачать HTML</button>
+            <button class="btn danger" id="resetBtn">Сбросить</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="footer">
+      <div class="copy">© Все права принадлежат Башлыковой Оксане Михайловне</div>
+      <div style="opacity:.65;">English Bootcamp</div>
+    </div>
+  </div>
+
+  <div class="pane right">
+    <div class="previewTop">
+      <div class="title">Предпросмотр</div>
+      
+      <div class="prevTabs">
+        <button class="ptBtn active" data-view="screen">Заставка</button>
+        <button class="ptBtn" data-view="game">Игра</button>
+      </div>
+
+      <div class="split">
+        <div class="pill" id="statusPill">готово</div>
+      </div>
+    </div>
+    
+    <div class="preview-container">
+      <iframe id="preview" allow="autoplay"></iframe>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===========================
+   MathJax Symbols (Шпаргалка)
+=========================== */
+const mathSymbols = [
+  { l: 'x²', c: '$x^2$' }, { l: 'xⁿ', c: '$x^{n}$' }, { l: 'x₁', c: '$x_1$' },
+  { l: '√x', c: '$\\sqrt{x}$' }, { l: 'ⁿ√a', c: '$\\sqrt[n]{a}$' }, { l: 'a/b', c: '$\\frac{a}{b}$' },
+  { l: '×', c: '$\\times$' }, { l: '÷', c: '$\\div$' }, { l: '±', c: '$\\pm$' },
+  { l: '≠', c: '$\\neq$' }, { l: '≤', c: '$\\leq$' }, { l: '≥', c: '$\\geq$' },
+  { l: '∞', c: '$\\infty$' }, { l: 'π', c: '$\\pi$' }, { l: '∠', c: '$\\angle$' },
+  { l: '°', c: '$^\\circ$' }, { l: '△', c: '$\\triangle$' }, { l: '∥', c: '$\\parallel$' },
+  { l: '⊥', c: '$\\perp$' }, { l: '∑', c: '$\\sum_{i=1}^{n}$' }
+];
+
+const grid = document.getElementById('mathGrid');
+if(grid){
+  mathSymbols.forEach(sym => {
+    const btn = document.createElement('button');
+    btn.className = 'math-btn';
+    btn.textContent = sym.l;
+    btn.title = sym.c;
+    btn.onclick = () => {
+      navigator.clipboard.writeText(sym.c);
+      setStatus('Формула скопирована! ✅');
+    };
+    grid.appendChild(btn);
+  });
+}
+
+/* ===========================
+   Stars background
+=========================== */
+const starCanvas = document.getElementById('stars');
+const sctx = starCanvas.getContext('2d');
+let W=0,H=0,stars=[];
+function resizeStars(){
+  W = starCanvas.width = window.innerWidth;
+  H = starCanvas.height = window.innerHeight;
+}
+function rand(a,b){ return a + Math.random()*(b-a); }
+function initStars(){
+  stars = Array.from({length: 60}, ()=>({
+    x: rand(0,W), y: rand(0,H),
+    r: rand(1.8,4.8),
+    vx: rand(-0.25,0.25),
+    vy: rand(-0.20,0.20),
+    tw: rand(0,Math.PI*2),
+    sp: rand(0.008,0.02),
+    hue: rand(160,210)
+  }));
+}
+function drawStar(x,y,r,alpha,hue){
+  sctx.save();
+  sctx.translate(x,y);
+  sctx.beginPath();
+  const spikes = 5;
+  const outer = r;
+  const inner = r*0.45;
+  let rot = Math.PI/2*3;
+  sctx.moveTo(0,-outer);
+  for(let i=0;i<spikes;i++){
+    sctx.lineTo(Math.cos(rot)*outer, Math.sin(rot)*outer); rot+=Math.PI/spikes;
+    sctx.lineTo(Math.cos(rot)*inner, Math.sin(rot)*inner); rot+=Math.PI/spikes;
+  }
+  sctx.closePath();
+  sctx.fillStyle = `hsla(${hue},100%,70%,${alpha})`;
+  sctx.shadowBlur = 18;
+  sctx.shadowColor = `hsla(${hue},100%,60%,${alpha})`;
+  sctx.fill();
+  sctx.restore();
+}
+function tickStars(){
+  sctx.clearRect(0,0,W,H);
+  for(const st of stars){
+    st.x += st.vx; st.y += st.vy;
+    if(st.x< -40) st.x=W+40;
+    if(st.x> W+40) st.x=-40;
+    if(st.y< -40) st.y=H+40;
+    if(st.y> H+40) st.y=-40;
+    st.tw += st.sp;
+    const a = 0.45 + Math.sin(st.tw)*0.35;
+    drawStar(st.x, st.y, st.r, a, st.hue + Math.sin(st.tw*0.7)*10);
+  }
+  requestAnimationFrame(tickStars);
+}
+window.addEventListener('resize', ()=>{resizeStars(); initStars();});
+resizeStars(); initStars(); tickStars();
+
+/* ===========================
+   UI helpers
+=========================== */
+const $ = (id)=>document.getElementById(id);
+const statusPill = $('statusPill');
+
+function setStatus(txt){
+  if(statusPill) {
+    statusPill.textContent = txt;
+    statusPill.style.borderColor = 'var(--th-tasks)';
+    statusPill.style.color = 'var(--th-tasks)';
+  }
+  clearTimeout(setStatus._t);
+  setStatus._t = setTimeout(()=>{ 
+    if(statusPill) {
+      statusPill.textContent='готово'; 
+      statusPill.style.borderColor = 'rgba(0,255,213,.25)';
+      statusPill.style.color = 'var(--muted)';
+    }
+  }, 1500);
+}
+
+function escForSrcdoc(html){
+  return html
+    .replace(/&/g,'&amp;')
+    .replace(/'/g,'&#39;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;');
+}
+
+async function fileToDataURL(file){
+  if(!file) return "";
+  return await new Promise((res,rej)=>{
+    const r = new FileReader();
+    r.onload = ()=>res(String(r.result||""));
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+/* ===========================
+   Tabs
+=========================== */
+const tabWrap = $('tabs');
+if(tabWrap) {
+  tabWrap.addEventListener('click', (e)=>{
+    const b = e.target.closest('.tabBtn');
+    if(!b) return;
+    document.querySelectorAll('.tabBtn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    const key = b.dataset.tab;
+    document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+    const targetSec = document.getElementById('sec_'+key);
+    if(targetSec) targetSec.classList.add('active');
+  });
+}
+
+let currentPreviewView = 'screen';
+document.querySelectorAll('.ptBtn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    document.querySelectorAll('.ptBtn').forEach(x => x.classList.remove('active'));
+    e.target.classList.add('active');
+    currentPreviewView = e.target.dataset.view;
+    applyPreview();
+  });
+});
+
+/* ===========================
+   Defaults 
+=========================== */
+const defaultTasks = `I ___ tired. | am | is | are
+He___books every day. | reads | read | reading
+Найдите корень:[br]$\\sqrt{16}$ | 4 | 8 | 2
+Вычислите: $6^2$ | 36 | 12 | 18
+Чему равно $2^5$? | 32 | 10 | 16
+$\\frac{1}{4} + \\frac{1}{4}$ | $\\frac{1}{2}$ | $\\frac{2}{8}$ | $\\frac{1}{8}$`;
+
+if($('tasksTA')) $('tasksTA').value = defaultTasks;
+
+if($('aBgAlpha')) {
+  $('aBgAlpha').addEventListener('input', function() {
+    if($('aBgAlphaVal')) $('aBgAlphaVal').textContent = this.value;
+  });
+}
+
+/* ===========================
+   Dynamic counts UI
+=========================== */
+function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+function updateCountsUI(){
+  const n = clamp(+$('taskCount')?.value || 10, 6, 14);
+  const tt = $('tasksTitleCount');
+  if(tt) tt.textContent = String(n);
+}
+updateCountsUI();
+$('taskCount')?.addEventListener('input', updateCountsUI);
+$('taskCount')?.addEventListener('change', updateCountsUI);
+
+
+/* ===========================
+   Глобальное состояние позиций
+=========================== */
+let qPanelState = {
+  w: '85%',
+  h: '110px',
+  top: '17px',
+  left: '50%',
+  transform: 'translateX(-50%)'
+};
+
+let mechState = {
+  left: '50%',
+  top: '60%',
+  transform: 'translate(-50%, -50%)'
+};
+
+/* Прием координат от перетаскивания */
+window.addEventListener('message', e => {
+  if (e.data) {
+    if (e.data.type === 'qUpdate') {
+       qPanelState.w = Math.round(e.data.w) + 'px';
+       qPanelState.h = Math.round(e.data.h) + 'px';
+       qPanelState.top = Math.round(e.data.top) + 'px';
+       qPanelState.left = Math.round(e.data.left) + 'px';
+       qPanelState.transform = 'none';
+    }
+    else if (e.data.type === 'mechUpdate') {
+       mechState.top = Math.round(e.data.top) + 'px';
+       mechState.left = Math.round(e.data.left) + 'px';
+       mechState.transform = 'none';
+       if($('mechX')) $('mechX').value = mechState.left;
+       if($('mechY')) $('mechY').value = mechState.top;
+    }
+  }
+});
+
+
+/* ===========================
+   Tasks format hint + validation
+=========================== */
+function getExpectedAnswers(){
+  return clamp(+$('gearCount')?.value || 3, 2, 5);
+}
+
+function updateTasksHintAndValidate(){
+  const nTasks = clamp(+$('taskCount')?.value || 10, 6, 14);
+  const nAns = getExpectedAnswers();
+
+  const lbl = $('tasksLabel');
+  if(lbl) lbl.textContent = `Список заданий (${nTasks} строк)`;
+
+  const ta = $('tasksTA');
+  const warn = $('tasksWarn');
+  if(!ta || !warn) return;
+
+  const rawLines = (ta.value || "").split(/\n/g);
+  const bad = [];
+  const extra = [];
+
+  rawLines.forEach((line, idx)=>{
+    const s = (line || "").trim();
+    if(!s) return;
+    const parts = s.split('|').map(x=>x.trim()).filter(x=>x!=="");
+    if(parts.length < 1 + nAns){
+      bad.push({i: idx+1, s});
+    }else if(parts.length > 1 + nAns){
+      extra.push({i: idx+1, s});
+    }
+  });
+
+  if(bad.length === 0 && extra.length === 0){
+    warn.style.display = "none";
+    warn.textContent = "";
+    return;
+  }
+
+  const linesBad = bad.slice(0,6).map(x=>x.i).join(', ');
+  const linesExtra = extra.slice(0,6).map(x=>x.i).join(', ');
+  const partsTxt = `нужно: вопрос + ${nAns} ответ(а) через "|"`;
+
+  let msg = "";
+  if(bad.length) msg += `⚠️ Недостаточно вариантов в строках: <b>${linesBad}</b> (${partsTxt}).`;
+  if(extra.length) msg += (msg ? "<br>" : "") + `ℹ️ Лишние варианты в строках: <b>${linesExtra}</b>.`;
+  warn.style.display = "block";
+  warn.innerHTML = msg;
+}
+
+updateTasksHintAndValidate();
+$('gearCount')?.addEventListener('input', updateTasksHintAndValidate);
+$('gearCount')?.addEventListener('change', updateTasksHintAndValidate);
+$('taskCount')?.addEventListener('input', updateTasksHintAndValidate);
+$('taskCount')?.addEventListener('change', updateTasksHintAndValidate);
+$('tasksTA')?.addEventListener('input', updateTasksHintAndValidate);
+
+/* ===========================
+   Build game HTML
+=========================== */
+function parseTasks(text){
+  const lines = (text || "").split(/\n/g).map(l=>l.trim()).filter(Boolean);
+  const items = [];
+  for(const ln of lines){
+    const parts = ln.split('|').map(x=>x.trim());
+    if(parts.length < 3) continue;
+    const q = parts[0];
+    const answers = parts.slice(1).filter(x=>x!=="");
+    items.push({q, answers});
+  }
+  return items;
+}
+
+function buildGameHtml(state, isPreviewMode = false, viewMode = 'screen'){
+  const t = state.texts;
+  const tasks = state.tasks;
+  const TASKS_JSON = JSON.stringify(tasks);
+  
+  const ui = state.neonOn ? state.uiColor : '#7a7a7a';
+  const activeColor = state.neonOn ? state.uiColor : '#7a7a7a';
+  const finalGlow = state.neonOn ? state.uiGlowSize : 0;
+  
+  const h = activeColor.replace('#','');
+  const uiR = parseInt(h.slice(0,2),16)||0;
+  const uiG = parseInt(h.slice(2,4),16)||0;
+  const uiB = parseInt(h.slice(4,6),16)||0;
+  const uiRGB = `${uiR},${uiG},${uiB}`;
+  
+  const aBgH = state.aBgColor.replace('#','');
+  const aBgR = parseInt(aBgH.slice(0,2),16)||0;
+  const aBgG = parseInt(aBgH.slice(2,4),16)||0;
+  const aBgB = parseInt(aBgH.slice(4,6),16)||0;
+  const aBgRGBA = `rgba(${aBgR},${aBgG},${aBgB},${state.aBgAlpha})`;
+
+  const bgCSS = (()=>{
+    if(state.bgMode === 'transparent') return `background:transparent;`;
+    if(state.bgMode === 'color') return `background:${state.bgColor};`;
+    const url = state.bgMode === 'upload' ? state.bgDataURL : state.bgUrl;
+    return `background:url('${url}') center/cover no-repeat;`;
+  })();
+
+  const overlayBgRGBA = (()=>{
+    const hex = state.overlayBg.replace('#','');
+    const r = parseInt(hex.slice(0,2),16);
+    const g = parseInt(hex.slice(2,4),16);
+    const b = parseInt(hex.slice(4,6),16);
+    return `rgba(${r},${g},${b},${state.overlayAlpha})`;
+  })();
+
+  const btnHover = state.btnNeonHover ? `
+    #OVERLAY .btnMain:hover{
+      transform:translateY(-1px) !important;
+      background:rgba(var(--uiRGB),.16) !important;
+      box-shadow:
+        0 0 0 2px ${ui},
+        0 0 var(--uiGlow) rgba(var(--uiRGB),.35),
+        0 0 18px rgba(var(--uiRGB),.22) inset !important;
+    }` : ``;
+
+  const gearHTML = Array.from({length: state.gearCount}, (_,i)=>`
+    <div class="gear" id="g${i}"><div class="img"></div><div class="label"></div></div>
+  `).join('');
+
+  const MUSIC_URL = state.musicDataURL || "";
+
+  const mathJaxScript = state.mathOn ? `
+  <script>
+    window.MathJax = { tex: { inlineMath: [['$','$'], ['\\\\(','\\\\)']] }, svg: { fontCache: 'global' } };
+  <\/script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"><\/script>
+  ` : '';
+
+  const visualEditorScript = isPreviewMode ? `
+    <script>
+      function makeDraggable(el, typeName) {
+         if(!el) return;
+         el.style.pointerEvents = "auto";
+         el.style.cursor = "move";
+         
+         if (typeName === 'qUpdate') {
+             el.style.border = "2px dashed #00ffd5";
+             el.style.resize = "both";
+             el.style.overflow = "hidden";
+             el.title = "Потяните за правый нижний угол. Хватайте в любом месте для перемещения.";
+         } else {
+             el.style.border = "2px dashed rgba(255,255,255,0.25)";
+             el.title = "Хватайте для перемещения всей композиции";
+         }
+
+         let isDragging = false;
+         let startX, startY, initialLeft, initialTop;
+
+         el.addEventListener('mousedown', function(e) {
+            if(typeof stopTimer === 'function') stopTimer();
+            if(typeName === 'mechUpdate' && (e.target.closest('.gear') || e.target.closest('#center'))) return; 
+            
+            const rect = el.getBoundingClientRect();
+            if (typeName === 'qUpdate' && (e.clientX - rect.left) > rect.width - 25 && (e.clientY - rect.top) > rect.height - 25) return;
+            
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+
+            const parentRect = el.parentElement.getBoundingClientRect();
+            const absoluteLeft = rect.left - parentRect.left;
+            const absoluteTop = rect.top - parentRect.top;
+
+            const computed = window.getComputedStyle(el);
+            if (computed.transform !== 'none') {
+                el.style.transform = 'none';
+                el.style.left = absoluteLeft + 'px';
+                el.style.top = absoluteTop + 'px';
+            }
+            initialLeft = parseFloat(el.style.left) || absoluteLeft;
+            initialTop = parseFloat(el.style.top) || absoluteTop;
+         });
+
+         window.addEventListener('mousemove', function(e) {
+            if(isDragging) {
+               el.style.left = (initialLeft + (e.clientX - startX)) + 'px';
+               el.style.top = (initialTop + (e.clientY - startY)) + 'px';
+            }
+         });
+
+         window.addEventListener('mouseup', function(e) {
+            if(isDragging) {
+               isDragging = false;
+               notifyParent();
+            }
+         });
+
+         if (typeName === 'qUpdate') {
+             let lastW = el.offsetWidth;
+             let lastH = el.offsetHeight;
+             const ro = new ResizeObserver(() => {
+                if(!isDragging && (el.offsetWidth !== lastW || el.offsetHeight !== lastH)) {
+                   lastW = el.offsetWidth;
+                   lastH = el.offsetHeight;
+                   notifyParent(); 
+                }
+             });
+             ro.observe(el);
+         }
+
+         let debounceTimer;
+         function notifyParent() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+              window.parent.postMessage({
+                 type: typeName,
+                 w: el.offsetWidth,
+                 h: el.offsetHeight,
+                 top: parseFloat(el.style.top) || (el.getBoundingClientRect().top - el.parentElement.getBoundingClientRect().top),
+                 left: parseFloat(el.style.left) || (el.getBoundingClientRect().left - el.parentElement.getBoundingClientRect().left)
+              }, '*');
+            }, 100); 
+         }
+      }
+
+      makeDraggable(document.getElementById("QUESTION"), 'qUpdate');
+      makeDraggable(document.getElementById("MECH"), 'mechUpdate');
+    <\/script>
+  ` : '';
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>${t.gameTitle}</title>
+${mathJaxScript}
+<style>
+  :root{
+    --ui:${ui};
+    --uiRGB:${uiRGB};
+    --uiGlow:${finalGlow}px;
+    --aBgRGBA:${aBgRGBA};
+
+    --qTop:${state.qTop};
+    --qLeft:${state.qLeft};
+    --qTransform:${state.qTransform};
+    
+    --mechLeft:${state.mechLeft};
+    --mechTop:${state.mechTop};
+    --mechTransform:${state.mechTransform};
+
+    --centerLift:${state.centerLift}px;
+    --gearGapPx:${state.gearGap}px;
+
+    /* Вопрос */
+    --qFont:${state.qFont};
+    --qSize:${state.qFontSize}px;
+    --qColor:${state.qColor};
+    --qPanelW:${state.qPanelW};
+    --qPanelH:${state.qPanelH};
+
+    --qLines:${state.qMaxLines};
+    --qAutoFit:${state.qAutoFit ? 1 : 0};
+    --qMinFont:${state.qMinFont}px;
+    --qReserve:${state.qReserve}px;
+
+    /* Ответы */
+    --aFont:${state.aFont};
+    --aSize:${state.aFontSize}px;
+    --aColor:${state.aColor};
+    --aShiftY:${state.aShiftY}px;
+
+    /* Таймер */
+    --timerIconSize: ${state.timerIconSize}px;
+    --timerFont: ${state.timerFont};
+    --timerFontSize: ${state.timerFontSize}px;
+    --timerColor: ${state.timerColor};
+
+    /* Размеры фигур */
+    --centerSizePx: ${state.centerSizePx}px;
+    --gearSizePx: ${state.gearSizePx}px;
+
+    /* Заставки */
+    --ovTitleFont:${state.ovTitleFont};
+    --ovTitleSize:${state.ovTitleSize}px;
+    --ovTitleColor:${state.ovTitleColor};
+
+    --ovTextFont:${state.ovTextFont};
+    --ovTextSize:${state.ovTextSize}px;
+    --ovTextColor:${state.ovTextColor};
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html,body{
+    margin:0; width:100%; height:100%; overflow:hidden;
+    ${state.bgMode==='transparent' ? 'background:transparent;' : 'background:#000;'}
+    font-family:Arial, sans-serif;
+  }
+  #APP{position:relative;width:100%;height:100%; overflow:hidden;}
+  #APP.locked #HUD, #APP.locked #QUESTION, #APP.locked #MECH{ visibility:hidden; }
+
+  #BG{
+    position:absolute; inset:0;
+    ${bgCSS}
+    filter:saturate(1.05) contrast(1.05);
+  }
+  #BG::after{content:""; position:absolute; inset:0; background:rgba(0,0,0,.14);}
+
+  #HUD{ position:absolute; inset:0 auto auto 0; width:100%; padding:14px 16px; z-index:6; pointer-events:none; }
+  #HUDleft{ pointer-events:auto; position:absolute; left:16px; top:14px; display:flex; flex-direction:column; gap:12px; align-items:flex-start; }
+  #HUDright{ pointer-events:auto; position:absolute; right:16px; top:14px; display:flex; gap:12px; align-items:flex-start; }
+
+  #lives{
+    display:flex; gap:10px; align-items:center;
+    padding:12px 14px; border-radius:18px;
+    background:rgba(0,0,0,.34); backdrop-filter: blur(6px);
+    box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 0 0 2px rgba(255,43,43,.18) inset, 0 0 22px rgba(255,43,43,.14);
+  }
+
+  .heart {
+    width: ${state.heartSize}px; height: ${state.heartSize}px;
+    background: url('${state.heartURL}') center/contain no-repeat;
+    filter: drop-shadow(0 0 14px rgba(255,70,70,.75));
+    transition: width 0.3s, height 0.3s;
+    animation: heartBeat 1.2s infinite ease-in-out;
+  }
+  @keyframes heartBeat { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+  .heart.off{opacity:.18; filter:none;}
+
+  #progress{
+    display:grid; grid-template-columns: repeat(2, 1fr); gap:10px;
+    padding:12px 14px; border-radius:18px;
+    background:rgba(0,0,0,.34); backdrop-filter: blur(6px);
+    box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 0 0 2px rgba(var(--uiRGB),.18) inset, 0 0 var(--uiGlow) rgba(var(--uiRGB),.25);
+  }
+  .pbox{
+    width:54px; height:54px; border-radius:16px;
+    border:2px solid rgba(var(--uiRGB),.72);
+    background:rgba(0,0,0,.22);
+    box-shadow:0 0 14px rgba(var(--uiRGB),.18);
+    display:grid; place-items:center; overflow:hidden;
+  }
+  .pbox.filled::before{
+    content:""; width:42px;height:42px;
+    background:url('${state.markerURL}') center/contain no-repeat;
+    filter:drop-shadow(0 0 var(--uiGlow) rgba(var(--uiRGB),.55));
+    opacity:.95;
+  }
+
+  #timerWrap{
+    display:flex; align-items:center; gap:12px;
+    padding:12px 16px; border-radius:18px;
+    background:rgba(0,0,0,.34); backdrop-filter: blur(6px);
+    box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 0 0 2px rgba(var(--uiRGB),.18) inset, 0 0 var(--uiGlow) rgba(var(--uiRGB),.25);
+    user-select:none; margin-right: 40px; 
+  }
+  #timerIcon{
+    width:var(--timerIconSize); height:var(--timerIconSize);
+    background:url('${state.timerIconURL}') center/contain no-repeat;
+    filter:drop-shadow(0 0 var(--uiGlow) rgba(var(--uiRGB),.55));
+  }
+  #timerText{
+    min-width:52px; line-height:1; font-weight:900;
+    font-family:var(--timerFont); font-size:var(--timerFontSize);
+    color:var(--timerColor); text-align:right;
+  }
+  #timerWrap.danger{
+    box-shadow: 0 0 0 1px rgba(255,43,43,.72), 0 0 0 2px rgba(255,43,43,.18) inset, 0 0 28px rgba(255,43,43,.22);
+    animation:pulseDanger .55s infinite alternate;
+  }
+  #timerWrap.danger #timerText{color:#ffe3e3;}
+  #timerWrap.danger #timerIcon{filter:drop-shadow(0 0 18px rgba(255,43,43,.8));}
+  @keyframes pulseDanger{from{transform:scale(1)}to{transform:scale(1.05)}}
+
+  #musicBtn{
+    width:56px;height:56px; border-radius:18px; border:none; cursor:pointer;
+    background:rgba(0,0,0,.34); backdrop-filter: blur(6px);
+    box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 0 0 2px rgba(var(--uiRGB),.18) inset, 0 0 var(--uiGlow) rgba(var(--uiRGB),.25);
+    color:var(--qColor); font-size:24px; font-weight:900; pointer-events:auto;
+    transition:transform .12s ease, box-shadow .12s ease, opacity .12s ease;
+  }
+  #musicBtn:hover{transform:translateY(-1px); box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 0 0 2px rgba(var(--uiRGB),.35) inset, 0 0 var(--uiGlow) rgba(var(--uiRGB),.35);}
+  #musicBtn.off{opacity:.55}
+
+  #QUESTION{
+    position:absolute; left:var(--qLeft); top:var(--qTop); transform:var(--qTransform);
+    width:var(--qPanelW); max-width:calc(100% - var(--qReserve)); height:var(--qPanelH); 
+    z-index:5; display:flex; align-items:center; justify-content:center;
+    padding:12px 28px; text-align:center; font-weight:900;
+    font-family:var(--qFont); font-size:var(--qSize); color:var(--qColor);
+    line-height:1.12; pointer-events:none; 
+  }
+  #QTEXT{
+    flex:1 1 auto; width:100%; max-height:100%; min-width:0;
+    white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word;
+    display:-webkit-box; -webkit-line-clamp:var(--qLines,2); -webkit-box-orient:vertical; overflow:hidden; line-height:1.15;
+  }
+  #QUESTION::before{
+    content:""; position:absolute; inset:0;
+    background:url('${state.qPanelURL}') center/100% 100% no-repeat;
+    filter:drop-shadow(0 16px 26px rgba(0,0,0,.40)); z-index:-1;
+  }
+
+  #MECH{
+    position:absolute; left:var(--mechLeft); top:var(--mechTop); transform:var(--mechTransform);
+    width:min(980px, 96vw); height:min(580px, 70vh);
+    z-index:4; pointer-events:none; 
+  }
+  
+  #center{
+    position:absolute; left:50%; top:calc(56% - var(--centerLift)); transform:translate(-50%,-50%);
+    width:min(var(--centerSizePx), 50vw); aspect-ratio:1/1;
+    background:url('${state.centerURL}') center/contain no-repeat;
+    filter:drop-shadow(0 20px 32px rgba(0,0,0,.55));
+    pointer-events:auto; z-index:3; transition: filter 0.2s; 
+  }
+  #center.correct { filter: drop-shadow(0 20px 32px rgba(0,0,0,.55)) drop-shadow(0 0 35px #00ff00) !important; }
+  #center.wrong { filter: drop-shadow(0 20px 32px rgba(0,0,0,.55)) drop-shadow(0 0 35px #ff2b2b) !important; }
+
+  .gear{
+    position:absolute; left:50%; top:calc(56% - var(--centerLift));
+    width:min(var(--gearSizePx), 35vw); aspect-ratio:1/1; transform:translate(-50%,-50%);
+    display:grid; place-items:center; cursor:pointer;
+    z-index:2; pointer-events:auto; touch-action: manipulation;
+  }
+  .gear .img{
+    position:absolute; inset:0; background:url('${state.gearURL}') center/contain no-repeat;
+    filter:drop-shadow(0 16px 24px rgba(0,0,0,.52)); pointer-events:none;
+  }
+  .gear .label{
+    position:relative; max-width:78%; padding:10px 12px; border-radius:14px; background:var(--aBgRGBA);
+    box-shadow: 0 0 0 1px rgba(255,255,255,.15);
+    font-weight:900; text-align:center; line-height:1.05;
+    font-family:var(--aFont); font-size:var(--aSize); color:var(--aColor);
+    transform:translateY(var(--aShiftY)); will-change:transform;
+    user-select:none; pointer-events:none;
+  }
+
+  .shake{animation:shake .25s;}
+  @keyframes shake{
+    0%{transform:translate(-50%,-50%)}
+    25%{transform:translate(calc(-50% - 4px),calc(-50% + 3px))}
+    50%{transform:translate(calc(-50% + 4px),calc(-50% - 3px))}
+    75%{transform:translate(calc(-50% - 3px),calc(-50% + 2px))}
+    100%{transform:translate(-50%,-50%)}
+  }
+
+  /* ===== OVERLAY ===== */
+  #OVERLAY{
+    position:absolute !important; inset:0 !important; width:100% !important; height:100% !important;
+    z-index:999999 !important; display:flex !important; align-items:center !important; justify-content:center !important;
+    padding:22px !important; background:${overlayBgRGBA} !important; backdrop-filter: blur(8px) !important;
+  }
+  #OVERLAY.hidden{ opacity:0 !important; pointer-events:none !important; visibility:hidden !important; }
+  #OVERLAY .overlayCard{
+    width:min(980px, 92vw) !important; border-radius:26px !important; padding:30px 30px 26px !important;
+    background:rgba(0,0,0,.28) !important; border:2px solid rgba(var(--uiRGB),.38) !important;
+    box-shadow: 0 0 0 1px rgba(255,255,255,.04) inset, 0 0 var(--uiGlow) rgba(var(--uiRGB),.15), 0 18px 60px rgba(0,0,0,.55) !important;
+    text-align:center !important; position:relative !important; overflow:hidden !important; margin:0 auto !important;
+    transform: translateY(${state.overlayLiftVh}vh) !important;
+  }
+  #OVERLAY .overlayCard::before{
+    content:""; position:absolute; inset:-2px; pointer-events:none;
+    background: radial-gradient(60% 80% at 50% 30%, rgba(var(--uiRGB),.10), transparent 70%),
+                radial-gradient(60% 80% at 50% 100%, rgba(var(--uiRGB),.06), transparent 70%);
+  }
+  #OVERLAY .overlayCard.danger{ border-color:rgba(255,43,43,.44) !important; }
+  #startMask{
+    width:86px; height:86px; margin:0 auto 14px; background:url('${state.centerURL}') center/contain no-repeat;
+    filter: drop-shadow(0 16px 26px rgba(0,0,0,.65)) drop-shadow(0 0 var(--uiGlow) rgba(var(--uiRGB),.35)); opacity:.95;
+  }
+  #OVERLAY .title{
+    font-weight:900 !important; font-family:var(--ovTitleFont) !important; font-size:var(--ovTitleSize) !important;
+    margin:0 0 10px !important; color:var(--ovTitleColor) !important; line-height:1.03 !important; letter-spacing:.3px !important;
+    text-shadow: 0 0 var(--uiGlow) rgba(var(--uiRGB),.30), 0 2px 18px rgba(0,0,0,.9) !important;
+  }
+  #OVERLAY .subtitle{
+    font-family:var(--ovTextFont) !important; font-size:var(--ovTextSize) !important; color:var(--ovTextColor) !important;
+    opacity:.95 !important; margin:0 auto 20px !important; max-width:780px !important; line-height:1.28 !important;
+    text-shadow:0 2px 14px rgba(0,0,0,.86) !important;
+  }
+  #OVERLAY .rowBtns{ display:flex !important; gap:14px !important; justify-content:center !important; flex-wrap:wrap !important; }
+  #OVERLAY .btnMain{
+    cursor:pointer !important; border:none !important; padding:14px 26px !important; border-radius:18px !important;
+    font-weight:900 !important; letter-spacing:.6px !important; color:var(--ovTitleColor) !important;
+    background:rgba(0,0,0,.38) !important; box-shadow: 0 0 0 2px rgba(var(--uiRGB),.42), 0 0 var(--uiGlow) rgba(var(--uiRGB),.14) !important;
+    text-shadow:0 2px 14px rgba(0,0,0,.92) !important; font-size:16px !important; min-width:190px !important;
+    display:inline-flex !important; align-items:center !important; justify-content:center !important; white-space:nowrap !important;
+    transition:transform .14s ease, box-shadow .14s ease, background .14s ease !important;
+  }
+  ${btnHover}
+  #OVERLAY .btnMain:active{ transform:translateY(0) scale(.98) !important; }
+</style>
+</head>
+<body>
+<div id="APP">
+  <div id="BG"></div>
+  <div id="HUD">
+    <div id="HUDleft"><div id="lives"></div><div id="progress"></div></div>
+    <div id="HUDright">
+      <div id="timerWrap"><div id="timerIcon"></div><div id="timerText">${state.timePerQ}</div></div>
+      <button id="musicBtn" title="Music"></button>
+    </div>
+  </div>
+
+  <div id="QUESTION"><div id="QTEXT"></div></div>
+
+  <div id="MECH">
+    <div id="center"></div>
+    ${gearHTML}
+  </div>
+
+  <div id="OVERLAY">
+    <div class="overlayCard" id="ovCard">
+      <div id="startMask"></div>
+      <div class="title" id="ovTitle"></div>
+      <div class="subtitle" id="ovText"></div>
+      <div class="rowBtns" id="ovBtns"></div>
+    </div>
+  </div>
+
+  <audio id="bgm" preload="auto" loop></audio>
+</div>
+
+<script>
+const MUSIC_URL = ${JSON.stringify(MUSIC_URL)};
+const TIME_PER_Q = ${state.timePerQ};
+const DANGER_AT = ${state.dangerAt};
+const START_LIVES = ${state.lives};
+const TARGET_SCORE = ${state.targetScore};
+const FW_TYPE = "${state.fwType}";
+const FW_COLOR = "${state.fwColor}";
+
+const TEXTS = {
+  gameTitle: ${JSON.stringify(t.gameTitle)}, startBtnText: ${JSON.stringify(t.startBtnText)}, playAgainText: ${JSON.stringify(t.playAgainText)},
+  startTitle: ${JSON.stringify(t.startTitle)}, startTask: ${JSON.stringify(t.startText)},
+  winTitle: ${JSON.stringify(t.winTitle)}, winText: ${JSON.stringify(t.winText)},
+  lostTitle: ${JSON.stringify(t.lostTitle)}, lostText: ${JSON.stringify(t.lostText)},
+  overTitle: ${JSON.stringify(t.overTitle)}, overText: ${JSON.stringify(t.overText)},
+};
+
+const TASKS = ${TASKS_JSON};
+const el = (id)=>document.getElementById(id);
+const gears = Array.from(document.querySelectorAll('.gear'));
+const labels = gears.map(g=>g.querySelector(".label"));
+
+const timerWrap = el("timerWrap"); const timerText = el("timerText");
+const questionBox = el("QUESTION"); const qText = el("QTEXT");
+
+function applyQuestionLayout(){
+  qText.style.fontSize = "";
+  const autoFit = (getComputedStyle(document.documentElement).getPropertyValue('--qAutoFit').trim() === '1');
+  if(!autoFit) return;
+  const cs = getComputedStyle(questionBox);
+  const padY = (parseFloat(cs.paddingTop)||0) + (parseFloat(cs.paddingBottom)||0);
+  const maxH = Math.max(20, questionBox.clientHeight - padY);
+  const minFont = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--qMinFont')) || 14;
+  let size = parseFloat(getComputedStyle(qText).fontSize) || 22;
+  let guard = 0;
+  while(guard++ < 40){
+    const h = qText.scrollHeight || qText.getBoundingClientRect().height;
+    if(h <= maxH + 0.5) break;
+    size = Math.max(minFont, size - 1);
+    qText.style.fontSize = size + "px";
+    if(size <= minFont) break;
+  }
+}
+window.addEventListener('resize', ()=>{ if(!overlay.classList.contains('hidden')) return; applyQuestionLayout(); });
+
+const overlay = el("OVERLAY"), ovTitle = el("ovTitle"), ovText = el("ovText"), ovBtns = el("ovBtns"), ovCard = el("ovCard"), startMask = el("startMask");
+const musicBtn = el("musicBtn"), bgm = el("bgm");
+
+let musicOn = true, lives = START_LIVES, score = 0, qDeck = [], current = null, timeLeft = TIME_PER_Q, timerInterval = null, ended = false, orbitT = 0, rafId = null;
+let spinSpeed = ${state.spinSpeed}, orbitSpeed = ${state.orbitSpeed}, spinSelf = ${state.spinSelf ? 'true' : 'false'};
+
+function stopTimer(){ if(timerInterval){ clearInterval(timerInterval); timerInterval = null; } }
+
+/* ========= WebAudio SFX ========= */
+let AC = null;
+function audioCtx(){ if(!AC) AC = new (window.AudioContext || window.webkitAudioContext)(); return AC; }
+function beep({freq=440, dur=0.12, type="sine", vol=0.2, slide=0, when=0}){
+  const ctx = audioCtx(); const t0 = ctx.currentTime + when; const o = ctx.createOscillator(); const g = ctx.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t0);
+  if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(20,freq*slide), t0+dur);
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(${state.sfxVol} * vol, t0+0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+  o.connect(g).connect(ctx.destination); o.start(t0); o.stop(t0+dur+0.02);
+}
+function sfxCorrect(){ beep({freq:520,type:"triangle",dur:0.10,vol:0.16}); beep({freq:780,type:"triangle",dur:0.12,vol:0.14,when:0.06}); beep({freq:1040,type:"sine",dur:0.10,vol:0.10,when:0.12}); }
+function sfxWrong(){ beep({freq:220,type:"sawtooth",dur:0.16,vol:0.12,slide:0.65}); beep({freq:160,type:"sawtooth",dur:0.18,vol:0.10,when:0.10,slide:0.55}); }
+function sfxTick(){ beep({freq:980,type:"square",dur:0.06,vol:${state.tickVol}}); }
+function sfxWin(){ beep({freq:523.25,type:"triangle",dur:0.10,vol:0.12}); beep({freq:659.25,type:"triangle",dur:0.10,vol:0.12,when:0.08}); beep({freq:783.99,type:"triangle",dur:0.12,vol:0.12,when:0.16}); beep({freq:1046.5,type:"sine",dur:0.18,vol:0.10,when:0.26}); }
+function sfxWinEpic(){ beep({freq: 392, type: "square", dur: 0.15, vol: 0.15}); beep({freq: 523, type: "square", dur: 0.15, vol: 0.15, when: 0.15}); beep({freq: 659, type: "square", dur: 0.15, vol: 0.15, when: 0.30}); beep({freq: 783, type: "square", dur: 0.60, vol: 0.15, when: 0.45}); beep({freq: 523, type: "sawtooth", dur: 0.60, vol: 0.10, when: 0.45}); beep({freq: 659, type: "sawtooth", dur: 0.60, vol: 0.10, when: 0.45}); }
+function sfxLoseEpic(){ beep({freq: 440, type: "sawtooth", dur: 1.5, vol: 0.15, slide: 0.1}); beep({freq: 220, type: "sine", dur: 1.8, vol: 0.10, when: 0.05, slide: 0.2}); }
+function sfxFirework(){ beep({freq: 120, type: "sawtooth", dur: 0.4, vol: 0.12, slide: 0.1}); beep({freq: 60, type: "sine", dur: 0.5, vol: 0.15, when: 0.05, slide: 0.1}); }
+
+function shuffle(arr){ for(let i=arr.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [arr[i],arr[j]] = [arr[j],arr[i]]; } return arr; }
+function normalizeTask(t){ return { q: String((t && t.q) || ""), answers: (Array.isArray(t && t.answers) ? t.answers.map(x=>String(x||"").trim()) : []).filter(Boolean) }; }
+function buildDeck(){ const items = (Array.isArray(TASKS)?TASKS:[]).map(normalizeTask).filter(x=>x.q && x.answers.length>=2); shuffle(items); return items.slice(0, TARGET_SCORE); }
+
+function renderProgress(){ const p = el("progress"); p.innerHTML = ""; for(let i=0;i<TARGET_SCORE;i++){ const d = document.createElement("div"); d.className = "pbox" + (i<score?" filled":""); p.appendChild(d); } }
+function renderLives(){ const l = el("lives"); l.innerHTML = ""; for(let i=0;i<START_LIVES;i++){ const h = document.createElement("div"); h.className = "heart" + (i<lives?"":" off"); l.appendChild(h); } }
+
+function setOverlay({title, text, danger=false, showMask=false, buttons=[]}){
+  ovTitle.textContent = title; ovText.textContent = text; ovCard.classList.toggle("danger", !!danger); startMask.style.display = showMask ? "block" : "none";
+  ovBtns.innerHTML = "";
+  buttons.forEach(b=>{ const btn = document.createElement("button"); btn.type="button"; btn.className = "btnMain " + (b.kind||""); btn.textContent = b.text; btn.addEventListener("click", b.onClick); ovBtns.appendChild(btn); });
+  overlay.classList.remove("hidden"); questionBox.classList.add("hidden");
+}
+function hideOverlay(){ overlay.classList.add("hidden"); questionBox.classList.remove("hidden"); }
+
+function updateMusicBtn(){ musicBtn.textContent = musicOn ? "🔊" : "🔇"; musicBtn.classList.toggle("off", !musicOn); }
+musicBtn.addEventListener("click", async ()=>{
+  try{ audioCtx().resume(); }catch(e){} musicOn = !musicOn; updateMusicBtn();
+  if(!MUSIC_URL) return;
+  if(musicOn){ try{ await bgm.play(); }catch(e){} }else{ try{ bgm.pause(); }catch(e){} }
+});
+function loadMusic(){ if(!MUSIC_URL){ bgm.removeAttribute("src"); musicBtn.style.display="none"; return; } bgm.src = MUSIC_URL; bgm.volume = ${state.musicVol}; musicBtn.style.display="flex"; }
+
+function resetGame(){
+  ended = false; stopTimer(); if(rafId){ cancelAnimationFrame(rafId); rafId=null; }
+  lives = START_LIVES; score = 0; qDeck = buildDeck(); current = null; orbitT = 0; timeLeft = TIME_PER_Q;
+  timerWrap.classList.remove("danger"); timerText.textContent = String(TIME_PER_Q);
+  renderLives(); renderProgress();
+}
+
+function startTimer(){
+  if(ended) return; stopTimer();
+  timerInterval = setInterval(()=>{
+    if(ended){ stopTimer(); return; } timeLeft--; timerText.textContent = String(Math.max(0,timeLeft));
+    if(timeLeft <= DANGER_AT){ timerWrap.classList.add("danger"); sfxTick(); }else{ timerWrap.classList.remove("danger"); }
+    if(timeLeft <= 0){
+      ended = true; stopTimer(); sfxLoseEpic();
+      setOverlay({ title: TEXTS.lostTitle, text: TEXTS.lostText, danger:true, showMask:false, buttons:[{text: TEXTS.playAgainText, kind:"danger", onClick: ()=> startGame(true)}] });
+    }
+  }, 1000);
+}
+
+function nextQuestion(){
+  if(ended) return;
+  timerWrap.classList.remove("danger"); timeLeft = TIME_PER_Q; timerText.textContent = String(timeLeft);
+  current = qDeck.shift();
+  if(!current){
+    ended = true; stopTimer(); sfxWin();
+    setOverlay({ title: TEXTS.winTitle, text: TEXTS.winText, danger:false, showMask:false, buttons:[{text: TEXTS.playAgainText, kind:"", onClick: ()=> startGame(true)}] });
+    return;
+  }
+  qText.innerHTML = "";
+  const parts = current.q.split(/\\[br\\]/i);
+  parts.forEach((p, idx) => { qText.appendChild(document.createTextNode(p)); if(idx < parts.length - 1) qText.appendChild(document.createElement('br')); });
+  applyQuestionLayout();
+  
+  const raw = Array.isArray(current.answers) ? current.answers.slice() : [];
+  const correct = raw[0] || ""; const wrongs = raw.slice(1);
+  const need = gears.length; const pickedWrongs = wrongs.slice(0, Math.max(0, need - 1));
+  while(pickedWrongs.length < need - 1) pickedWrongs.push("—");
+  const answers = [{text: correct, ok:true}, ...pickedWrongs.map(t=>({text:t, ok:false}))];
+  shuffle(answers);
+  answers.forEach((a,i)=>{ labels[i].textContent = a.text; gears[i].dataset.ok = a.ok ? "1" : "0"; });
+  if (window.MathJax) MathJax.typesetPromise();
+  startTimer();
+}
+
+let blockInput = false;
+function onChoose(gearEl){
+  if(ended || blockInput) return;
+  try { audioCtx().resume(); } catch(e) {}
+  blockInput = true; setTimeout(() => { blockInput = false; }, 350); 
+  const ok = gearEl.dataset.ok === "1"; const centerEl = el("center"); 
+  if (centerEl._glowTimeout) clearTimeout(centerEl._glowTimeout);
+  centerEl.classList.remove("correct", "wrong", "shake"); void centerEl.offsetWidth;
+
+  if(ok){
+    score++; renderProgress();
+    centerEl.classList.add("correct"); centerEl._glowTimeout = setTimeout(() => centerEl.classList.remove("correct"), 800);
+    if(score >= TARGET_SCORE){
+      ended = true; stopTimer(); sfxWinEpic(); 
+      if (typeof startFireworks === 'function') startFireworks();
+      setTimeout(() => { setOverlay({ title: TEXTS.winTitle, text: TEXTS.winText, danger: false, showMask: false, buttons: [{text: TEXTS.playAgainText, kind: "", onClick: () => startGame(true)}] }); }, 3000); 
+      return;
+    }
+    sfxCorrect(); nextQuestion();
+  } else {
+    lives--; renderLives();
+    centerEl.classList.add("wrong", "shake"); centerEl._glowTimeout = setTimeout(() => centerEl.classList.remove("wrong", "shake"), 400);
+    if(lives <= 0){
+      ended = true; stopTimer(); sfxLoseEpic(); 
+      setOverlay({ title: TEXTS.overTitle, text: TEXTS.overText, danger: true, showMask: false, buttons: [{text: TEXTS.playAgainText, kind: "danger", onClick: () => startGame(true)}] });
+    } else { sfxWrong(); }
+  }
+}
+
+function animate(){
+  const centerEl = el("center"); const c = centerEl.getBoundingClientRect(); const g = gears[0].getBoundingClientRect();
+  const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--gearGapPx")) || 7;
+  const K = ${state.orbitK}; const R = ((c.width/2) + (g.width/2) + gap) * K;
+  orbitT += 0.016 * orbitSpeed; const N = gears.length;
+  for(let i=0;i<N;i++){
+    const ang = orbitT + i * (Math.PI * 2 / N);
+    const x = Math.cos(ang) * R; const y = Math.sin(ang) * R;
+    gears[i].style.left = "50%"; gears[i].style.top  = "calc(56% - var(--centerLift))";
+    gears[i].style.transform = \`translate(calc(-50% + \${x}px), calc(-50% + \${y}px))\`;
+    gears[i].querySelector(".img").style.transform = spinSelf ? \`rotate(\${(orbitT * 180/Math.PI) * 2.25 * spinSpeed * (i%2===0?1:-1)}deg)\` : \`rotate(0deg)\`;
+  }
+  rafId = requestAnimationFrame(animate);
+}
+
+function startGame(fromScratch){
+  if(fromScratch) resetGame();
+  el("APP").classList.remove("locked"); hideOverlay(); renderLives(); renderProgress();
+  if(musicOn && MUSIC_URL) bgm.play().catch(()=>{});
+  if(!rafId) animate(); nextQuestion();
+}
+
+function init(){
+  loadMusic(); updateMusicBtn(); resetGame();
+  if ("${viewMode}" === "game") {
+     el("APP").classList.remove("locked"); hideOverlay(); renderLives(); renderProgress(); if(!rafId) animate(); nextQuestion();
+  } else {
+     el("APP").classList.add("locked");
+     setOverlay({ title: TEXTS.startTitle, text: TEXTS.startTask, danger:false, showMask:true, buttons:[{text: TEXTS.startBtnText, kind:"", onClick: ()=> startGame(false)}] });
+  }
+  gears.forEach(g=>{ g.addEventListener("click", ()=>onChoose(g)); g.addEventListener("pointerdown", (e)=>{ e.preventDefault(); onChoose(g); }); });
+}
+init();
+
+function startFireworks() {
+  if (FW_TYPE === 'none') return;
+  const canvas = document.createElement('canvas');
+  Object.assign(canvas.style, { position: 'fixed', top: '0', left: '0', width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: '2147483647', display: 'block' });
+  const container = document.getElementById('APP') || document.body; container.appendChild(canvas);
+  const ctx = canvas.getContext('2d'); canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+  let particles = [];
+  let colors = ['#FFD700', '#FFCC00', '#FFA500', '#FFFFFF', '#00ffd5', '#ff2b2b'];
+  if (FW_TYPE === 'single') colors = [FW_COLOR];
+
+  function createPart(x, y) {
+    return { x, y, c: colors[Math.floor(Math.random() * colors.length)], vx: (Math.random() - 0.5) * 16, vy: (Math.random() - 0.5) * 16, a: 1.0, s: Math.random() * 3 + 2 };
+  }
+  for(let i=0; i<8; i++){
+    setTimeout(() => {
+      const tx = (0.2 + Math.random() * 0.6) * canvas.width; const ty = (0.2 + Math.random() * 0.4) * canvas.height;
+      if(typeof sfxFirework === 'function') sfxFirework();
+      for(let j=0; j<80; j++) particles.push(createPart(tx, ty));
+    }, i * 450);
+  }
+  let isWorking = true; setTimeout(() => isWorking = false, 4500);
+  function render() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let i = particles.length - 1; i >= 0; i--) {
+      let p = particles[i]; p.x += p.vx; p.y += p.vy; p.vy += 0.2; p.a -= 0.012;
+      if (p.a <= 0) { particles.splice(i, 1); continue; }
+      ctx.globalAlpha = p.a; ctx.fillStyle = p.c; ctx.shadowBlur = 15; ctx.shadowColor = p.c;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.s, 0, Math.PI * 2); ctx.fill();
+    }
+    if (isWorking || particles.length > 0) requestAnimationFrame(render); else if(canvas.parentNode) canvas.parentNode.removeChild(canvas);
+  }
+  render();
+}
+<\/script>
+${visualEditorScript}
+</body>
+</html>`;
+}
+
+/* ===========================
+   Collect state from editor
+=========================== */
+async function collectState(){
+  const gearCount = Math.max(2, Math.min(5, +$('gearCount')?.value || 3));
+  const taskCount = Math.max(4, Math.min(14, +$('taskCount')?.value || 6));
+  const taVal = $('tasksTA')?.value || defaultTasks;
+  const inputTasks = parseTasks(taVal);
+  const fallback = parseTasks(defaultTasks);
+  const warn = $('tasksWarn'); 
+  
+  let source = inputTasks.length > 0 ? inputTasks : fallback;
+  if (warn) {
+    if (inputTasks.length > 0 && inputTasks.length < taskCount) {
+      warn.style.display = 'block';
+      warn.innerHTML = `⚠️ <b>Внимание:</b> вопросов (${inputTasks.length}) меньше, чем контейнеров (${taskCount}). Вопросы будут повторяться по кругу.`;
+    } else { warn.style.display = 'none'; }
+  }
+
+  let tasks = [];
+  if (source.length > 0) {
+    while (tasks.length < taskCount) tasks.push(source[tasks.length % source.length]);
+  }
+  const tasksN = tasks.slice(0, taskCount).map(t => {
+    const ans = Array.isArray(t.answers) ? t.answers.slice(0, gearCount) : [];
+    while (ans.length < gearCount) ans.push("—");
+    return { q: t.q, answers: ans };
+  });
+
+  const getFile = (id) => ($(id) && $(id).files && $(id).files[0]) ? $(id).files[0] : null;
+  const getStr = (id, def) => $(id) ? $(id).value.trim() : def;
+  const formatPos = (val, def) => {
+    let v = String(val).trim();
+    if(!v) return def;
+    if(/^-?\d+$/.test(v)) return v + 'px'; 
+    return v;
+  };
+
+  const bgDataURL = await fileToDataURL(getFile('bgFile'));
+  const heartData = await fileToDataURL(getFile('heartFile'));
+  const timerData = await fileToDataURL(getFile('timerFile'));
+  const markerData = await fileToDataURL(getFile('markerFile'));
+  const qPanelData = await fileToDataURL(getFile('qPanelFile'));
+  const gearData = await fileToDataURL(getFile('gearFile'));
+  const centerData = await fileToDataURL(getFile('centerFile'));
+  const musicData = await fileToDataURL(getFile('musicFile'));
+
+  return {
+    tasks: tasksN, taskCount, timePerQ: +$('timePerQ')?.value || 10, lives: +$('lives')?.value || 3, heartSize: +$('heartSize')?.value || 30,
+    targetScore: taskCount, dangerAt: 5,
+    neonOn: $('neonOn') ? $('neonOn').checked : true, uiColor: $('uiColor')?.value || '#00ffd5', uiGlowSize: +$('uiGlowSize')?.value || 22,
+    bgMode: $('bgMode')?.value || 'url', bgUrl: getStr('bgUrl', "https://img.genially.com/67961b32a116fb001568a75e/d58b1f28-a8e9-4bdf-93d2-0e9c18b8588c.png"), bgDataURL, bgColor: $('bgColor')?.value || '#000000',
+    heartURL: heartData || getStr('heartUrl', "https://img.genially.com/67961b32a116fb001568a75e/38831aeb-9e51-4c42-9ee7-e7492d707a63.png"),
+    timerIconURL: timerData || getStr('timerUrl', "https://img.genially.com/67961b32a116fb001568a75e/51ad5890-ed47-44ef-9748-6c0a95de0bba.png"),
+    markerURL: markerData || getStr('markerUrl', "https://img.genially.com/67961b32a116fb001568a75e/7bff9826-27f1-485e-81a3-e058cd1dab2b.png"),
+    qPanelURL: qPanelData || getStr('qPanelUrl', "https://img.genially.com/67961b32a116fb001568a75e/980890bf-3962-4551-8dd2-c399de0accb4.png"),
+    gearURL: gearData || getStr('gearUrl', "https://img.genially.com/67961b32a116fb001568a75e/7bff9826-27f1-485e-81a3-e058cd1dab2b.png"),
+    centerURL: centerData || getStr('centerUrl', "https://img.genially.com/67961b32a116fb001568a75e/ba926358-67f4-49a7-913a-84f3df036388.png"),
+    gearCount, spinSelf: $('spinSelf') ? $('spinSelf').checked : true, orbitSpeed: +$('orbitSpeed')?.value || 0.75, spinSpeed: +$('spinSpeed')?.value || 1, centerLift: +$('centerLift')?.value || 49, gearGap: +$('gearGap')?.value || 5, orbitK: +$('orbitK')?.value || 0.80,
+    
+    mathOn: $('mathOn') ? $('mathOn').checked : true,
+
+    qPanelW: qPanelState.w, qPanelH: qPanelState.h, qTop: qPanelState.top, qLeft: qPanelState.left, qTransform: qPanelState.transform,
+    mechLeft: formatPos($('mechX')?.value, '50%'), mechTop: formatPos($('mechY')?.value, '60%'), mechTransform: mechState.transform,
+
+    qFont: $('qFont')?.value || "Arial, sans-serif", qFontSize: +$('qFontSize')?.value || 22, qColor: $('qColor')?.value || "#eaffff", qMaxLines: Math.max(1, Math.min(6, +$('qMaxLines')?.value || 2)), qAutoFit: $('qAutoFit') ? $('qAutoFit').checked : true, qMinFont: Math.max(10, Math.min(32, +$('qMinFont')?.value || 14)), qReserve: Math.max(100, Math.min(520, +$('qReserve')?.value || 320)),
+    aFont: $('aFont')?.value || "Arial, sans-serif", aFontSize: +$('aFontSize')?.value || 18, aColor: $('aColor')?.value || "#eaffff", aBgColor: $('aBgColor')?.value || "#000000", aBgAlpha: Math.max(0, Math.min(1, +$('aBgAlpha')?.value || 0.5)), aShiftY: +$('aShiftY')?.value || 0,
+    timerIconSize: +$('timerIconSize')?.value || 46, timerFont: $('timerFont')?.value || "Arial, sans-serif", timerFontSize: +$('timerFontSize')?.value || 38, timerColor: $('timerColor')?.value || "#eaffff",
+    centerSizePx: +$('centerSizePx')?.value || 260, gearSizePx: +$('gearSizePx')?.value || 148,
+    ovTitleFont: $('ovTitleFont')?.value || "Arial, sans-serif", ovTitleSize: +$('ovTitleSize')?.value || 52, ovTitleColor: $('ovTitleColor')?.value || "#eaffff",
+    ovTextFont: $('ovTextFont')?.value || "Arial, sans-serif", ovTextSize: +$('ovTextSize')?.value || 18, ovTextColor: $('ovTextColor')?.value || "#eaffff",
+    overlayBg: $('overlayBg')?.value || "#000000", overlayAlpha: Math.max(0, Math.min(1, +$('overlayAlpha')?.value || 0.58)), overlayLiftVh: +$('overlayLiftVh')?.value || -4, btnNeonHover: $('btnNeonHover') ? $('btnNeonHover').checked : true,
+    
+    fwType: $('fwType')?.value || 'multi', fwColor: $('fwColor')?.value || '#00ffd5',
+    musicDataURL: musicData || "", musicVol: Math.max(0, Math.min(1, +$('musicVol')?.value || 0.55)), sfxVol: Math.max(0, Math.min(1, +$('sfxVol')?.value || 0.60)), tickVol: Math.max(0, Math.min(1, +$('tickVol')?.value || 0.08)),
+    
+    texts:{
+      gameTitle: getStr('gameTitle', "Heart of the Stone Machine"), startBtnText: getStr('startBtnText', "START"), playAgainText: getStr('playAgainText', "PLAY AGAIN"),
+      startTitle: getStr('startTitle', "Heart of the Stone Machine"), startText: getStr('startText', "Start the stone mechanism. Choose the correct gear and fill all 10 markers before time runs out."),
+      winTitle: getStr('winTitle', "You Win!"), winText: getStr('winText', "The stone machine awakens. Well done!"),
+      lostTitle: getStr('lostTitle', "You Lost!"), lostText: getStr('lostText', "Time has stopped the mechanism."),
+      overTitle: getStr('overTitle', "Game Over"), overText: getStr('overText', "No lives left. Try again!"),
+    }
+  };
+}
+
+/* ===========================
+   Apply / Preview / Sync Copy
+=========================== */
+async function applyPreview(){
+  setStatus('обновляю…');
+  try {
+    const state = await collectState();
+    
+    // Обновляем окно предпросмотра
+    const previewHtml = buildGameHtml(state, true, currentPreviewView);
+    if($('preview')) $('preview').srcdoc = previewHtml;
+    
+    // Генерируем финальный код игры в фоне
+    const exportHtml = buildGameHtml(state, false, 'screen');
+    const base64Data = btoa(unescape(encodeURIComponent(exportHtml)));
+    
+    // Упрощенный iframe без сложных стилей, который Genially съест со 100% вероятностью
+    const iframeCode = `<iframe width="100%" height="650" src="data:text/html;base64,${base64Data}" frameborder="0" allow="autoplay; fullscreen" allowfullscreen="true"></iframe>`;
+    
+    // Показываем код в страховочном окошке
+    if($('iframeOut')) $('iframeOut').value = iframeCode;
+    setStatus('готово');
+  } catch(e) { console.error(e); setStatus('ошибка'); }
+}
+
+// Умная кнопка копирования
+if($('copyBtn')) {
+  $('copyBtn').addEventListener('click', async () => {
+    const ta = $('iframeOut');
+    if(!ta || !ta.value) {
+      alert('Сначала дождитесь обновления превью!');
+      return;
+    }
+
+    ta.focus();
+    ta.select();
+
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(ta.value);
+        setStatus('скопировано ✅');
+      } else {
+        const res = document.execCommand('copy');
+        if(res) setStatus('скопировано ✅');
+        else throw new Error('fallback failed');
+      }
+    } catch(err) {
+      setStatus('ошибка копирования');
+      alert('Браузер заблокировал копирование. Пожалуйста, скопируйте выделенный текст из маленького окошка вручную (кликните по нему правой кнопкой мыши -> Копировать, или нажмите Ctrl+C).');
+    }
+  });
+}
+
+// Функция: Скачать как HTML
+if($('downloadBtn')) $('downloadBtn').addEventListener('click', async ()=>{
+  setStatus('сборка файла...');
+  try {
+    const state = await collectState();
+    const exportHtml = buildGameHtml(state, false, 'screen');
+    
+    const blob = new Blob([exportHtml], {type: 'text/html;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'bootcamp-game.html';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    setStatus('скачано 💾');
+  } catch(e) { console.error(e); setStatus('ошибка'); }
+});
+
+if($('resetBtn')) $('resetBtn').addEventListener('click', ()=>{
+  const setVal = (id, v) => { if($(id)) $(id).value = v; };
+  const setChk = (id, v) => { if($(id)) $(id).checked = v; };
+
+  setVal('tasksTA', defaultTasks); setVal('taskCount', 6); setVal('timePerQ', 10); setVal('lives', 3); setVal('heartSize', 30);
+  setChk('neonOn', true); setVal('uiColor', "#00ffd5"); setVal('uiGlowSize', 22); setChk('mathOn', true);
+  setVal('bgMode', "url"); setVal('bgUrl', "https://img.genially.com/67961b32a116fb001568a75e/d58b1f28-a8e9-4bdf-93d2-0e9c18b8588c.png"); setVal('bgColor', "#000000");
+  
+  setVal('qFont', "Arial, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"); setVal('qFontSize', 22); setVal('qColor', "#eaffff");
+  qPanelState = { w: '85%', h: '110px', top: '17px', left: '50%', transform: 'translateX(-50%)' };
+  mechState = { left: '50%', top: '60%', transform: 'translate(-50%,-50%)' };
+  
+  setVal('qMaxLines', 2); setChk('qAutoFit', true); setVal('qMinFont', 14); setVal('qReserve', 320);
+  setVal('mechX', '50%'); setVal('mechY', '60%');
+  setVal('fwType', 'multi'); setVal('fwColor', '#00ffd5');
+
+  setVal('aFont', "Arial, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"); setVal('aFontSize', 18); setVal('aColor', "#eaffff"); setVal('aBgColor', "#000000"); setVal('aBgAlpha', 0.5); 
+  if($('aBgAlphaVal')) $('aBgAlphaVal').textContent = '0.5';
+  setVal('aShiftY', 0);
+
+  setVal('timerIconSize', 46); setVal('timerFont', "Arial, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"); setVal('timerFontSize', 38); setVal('timerColor', "#eaffff");
+  setVal('centerSizePx', 260); setVal('gearSizePx', 148);
+  setVal('ovTitleFont', "Arial, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"); setVal('ovTitleSize', 52); setVal('ovTitleColor', "#eaffff");
+  setVal('ovTextFont', "Arial, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"); setVal('ovTextSize', 18); setVal('ovTextColor', "#eaffff");
+
+  setVal('gearCount', 3); setChk('spinSelf', true); setVal('orbitSpeed', 0.75); setVal('spinSpeed', 1); setVal('centerLift', 49); setVal('gearGap', 5); setVal('orbitK', 0.80);
+  
+  setVal('gameTitle', "Heart of the Stone Machine"); setVal('startBtnText', "START"); setVal('playAgainText', "PLAY AGAIN");
+  setVal('startTitle', "Heart of the Stone Machine"); setVal('startText', "Start the stone mechanism. Choose the correct gear and fill all 10 markers before time runs out.");
+  setVal('winTitle', "You Win!"); setVal('winText', "The stone machine awakens. Well done!"); setVal('lostTitle', "You Lost!"); setVal('lostText', "Time has stopped the mechanism."); setVal('overTitle', "Game Over"); setVal('overText', "No lives left. Try again!");
+  
+  setVal('overlayBg', "#000000"); setVal('overlayAlpha', 0.58); setVal('overlayLiftVh', -4); setChk('btnNeonHover', true);
+  setVal('musicVol', 0.55); setVal('sfxVol', 0.60); setVal('tickVol', 0.08);
+
+  setStatus('сброшено'); applyPreview();
+});
+
+let autoTimer = null;
+function scheduleAuto(){
+  if(!$('autoUpdate') || !$('autoUpdate').checked) return;
+  clearTimeout(autoTimer); autoTimer = setTimeout(applyPreview, 250);
+}
+document.addEventListener('input', (e)=>{ if(e.target.closest('.pane.left')) scheduleAuto(); });
+document.addEventListener('change', (e)=>{ if(e.target.closest('.pane.left')) scheduleAuto(); });
+
+const translations = {
+  ru: {
+    tasks: "Задания", look: "Внешний вид", gears: "Шестерёнки", screens: "Заставки", export: "Экспорт",
+    langLabel: "Язык интерфейса:", baseParams: "Базовые параметры",
+    taskCount: "Кол-во задач:", timePerQ: "Время (с):", lives: "Жизни:",
+    tasksLabel: "Список заданий", applyBtn: "Обновить превью",
+    copyBtn: "Скопировать код", resetBtn: "Сбросить"
+  },
+  en: {
+    tasks: "Tasks", look: "Appearance", gears: "Gears", screens: "Screens", export: "Export",
+    langLabel: "Language:", baseParams: "Basic Parameters",
+    taskCount: "Tasks count:", timePerQ: "Time (sec):", lives: "Lives:",
+    tasksLabel: "Task List", applyBtn: "Update Preview",
+    copyBtn: "Copy code", resetBtn: "Reset"
+  },
+  de: {
+    tasks: "Aufgaben", look: "Aussehen", gears: "Zahnräder", screens: "Bildschirme", export: "Exportieren",
+    langLabel: "Sprache:", baseParams: "Basisparameter",
+    taskCount: "Aufgabenanzahl:", timePerQ: "Zeit (sek):", lives: "Leben:",
+    tasksLabel: "Aufgabenliste", applyBtn: "Vorschau aktual.",
+    copyBtn: "Code kopieren", resetBtn: "Zurücksetzen"
+  },
+  fr: {
+    tasks: "Tâches", look: "Apparence", gears: "Engrenages", screens: "Écrans", export: "Exporter",
+    langLabel: "Langue:", baseParams: "Paramètres de base",
+    taskCount: "Nombre de tâches:", timePerQ: "Temps (sec):", lives: "Vies:",
+    tasksLabel: "Liste des tâches", applyBtn: "Mettre à jour l'aperçu",
+    copyBtn: "Copier le code", resetBtn: "Réinitialiser"
+  },
+  es: {
+    tasks: "Tareas", look: "Apariencia", gears: "Engranajes", screens: "Pantallas", export: "Exportar",
+    langLabel: "Idioma:", baseParams: "Parámetros básicos",
+    taskCount: "Número de tareas:", timePerQ: "Tiempo (seg):", lives: "Vidas:",
+    tasksLabel: "Lista de tareas", applyBtn: "Actualizar vista previa",
+    copyBtn: "Copiar código", resetBtn: "Restablecer"
+  }
+};
+
+if($('langSelect')) {
+  $('langSelect').addEventListener('change', function() {
+    const lang = this.value; const t = translations[lang]; if(!t) return;
+    const tabs = ['tasks', 'look', 'gears', 'screens', 'export'];
+    tabs.forEach(tab => { const el = document.querySelector(`[data-tab="${tab}"]`); if(el) el.textContent = t[tab]; });
+    if(this.previousElementSibling) this.previousElementSibling.textContent = t.langLabel;
+    const idsMap = { 'ttl_baseParams': 'baseParams', 'lbl_taskCount': 'taskCount', 'lbl_timePerQ': 'timePerQ', 'lbl_lives': 'lives', 'tasksLabel': 'tasksLabel', 'applyBtn': 'applyBtn', 'copyBtn': 'copyBtn', 'resetBtn': 'resetBtn' };
+    for (let id in idsMap) { const el = document.getElementById(id); if(el) el.textContent = t[idsMap[id]]; }
+  });
+}
+
+applyPreview();
+</script>
+</body>
+</html>
