@@ -1,10 +1,9 @@
 <!doctype html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8"/>
-  <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;">
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Machine Game Editor</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Machine Game Editor</title>
 <style>
   :root{
     --bg:#070A0F;
@@ -35,7 +34,8 @@
   *{box-sizing:border-box;}
   a{color:var(--ui)}
   
-  .wrap{position:relative; height:100%; display:grid; grid-template-columns: 420px 1fr; gap:14px; padding:14px;}
+  /* ИСПРАВЛЕНИЕ: Уменьшена ширина левой панели с 420px до 380px для увеличения зоны превью */
+  .wrap{position:relative; height:100%; display:grid; grid-template-columns: 380px 1fr; gap:14px; padding:14px;}
   
   canvas#stars{position:fixed; inset:0; z-index:0;}
   .pane{position:relative; z-index:1; border:1px solid var(--stroke); background:linear-gradient(180deg, rgba(10,14,22,.85), rgba(10,14,22,.65)); border-radius:20px; box-shadow:0 0 30px rgba(0,255,213,.08); overflow:hidden; display:flex; flex-direction:column;}
@@ -139,22 +139,12 @@
   .ptBtn.active { background:rgba(0,255,213,.15); color:var(--txt); }
   .ptBtn:hover:not(.active) { background:rgba(255,255,255,.05); }
 
-  /* Контейнер предпросмотра 16:9 */
-  .preview-container {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-    background: rgba(0,0,0,0.2);
-  }
+  /* ИСПРАВЛЕНИЕ: Вернул ваш оригинальный стиль для превью на весь экран без сплющивания */
   iframe#preview {
+    flex: 1 1 auto;
     width: 100%;
-    aspect-ratio: 16 / 9;
-    max-height: 100%;
+    height: 100%;
     border: none;
-    border-radius: 12px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
     background: transparent;
   }
   
@@ -183,7 +173,6 @@
   .content::-webkit-scrollbar-thumb { background: rgba(0,255,213,0.3); border-radius: 10px; }
   .content::-webkit-scrollbar-thumb:hover { background: rgba(0,255,213,0.6); }
 
-  /* Окошко вывода кода */
   #iframeOut {
     width: 100%; height: 160px; font-size: 12px; color: rgba(255,255,255,0.8); 
     background: rgba(0,0,0,0.5); border: 1px solid rgba(135,206,250,0.3); 
@@ -283,7 +272,7 @@
 
        <div class="card" style="border: 2px dashed rgba(255,179,71,0.4); background: rgba(255,179,71,0.05);">
         <h3 style="color: var(--th-tasks);">✨ Размер и положение вопроса</h3>
-        <div class="mini" style="font-size: 12px; line-height: 1.5; opacity: 1; color: var(--txt);">
+        <div class="mini" style="font-size: 12px; line-height: 1.5; color: var(--txt);">
           Настраивается <b>мышкой на экране предпросмотра</b> (вкладка «Игра»)!<br>
           • Зажмите плашку, чтобы переместить.<br>
           • Потяните за правый нижний угол, чтобы изменить размер (текст перенесется автоматически).
@@ -830,7 +819,7 @@
           </div>
         </div>
       </div>
-      
+
       <div class="section" id="sec_export">
         <div class="card" style="background: rgba(135,206,250,0.05);">
           <h3>Экспорт и генерация</h3>
@@ -868,15 +857,13 @@
       </div>
     </div>
     
-    <div class="preview-container">
-      <iframe id="preview" allow="autoplay"></iframe>
-    </div>
+    <iframe id="preview" allow="autoplay"></iframe>
   </div>
 </div>
 
 <script>
 /* ===========================
-   MathJax Symbols (Шпаргалка)
+   MathJax Symbols
 =========================== */
 const mathSymbols = [
   { l: 'x²', c: '$x^2$' }, { l: 'xⁿ', c: '$x^{n}$' }, { l: 'x₁', c: '$x_1$' },
@@ -1959,12 +1946,11 @@ async function applyPreview(){
     
     // Генерируем финальный код игры в фоне
     const exportHtml = buildGameHtml(state, false, 'screen');
-    const base64Data = btoa(unescape(encodeURIComponent(exportHtml)));
     
-    // Упрощенный iframe без сложных стилей, который Genially съест со 100% вероятностью
-   const iframeCode = `<iframe width="100%" height="650" src="data:text/html;base64,${base64Data}" frameborder="0" allow="autoplay; fullscreen; microphone; camera; midi; encrypted-media" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>`;
+    // ИСПОЛЬЗУЕМ ВАШ ГЕНИАЛЬНЫЙ СПОСОБ ГЕНЕРАЦИИ ЧЕРЕЗ SRCDOC!
+    const iframeCode = `<iframe style="width:100%;height:100%;border:0" srcdoc='${escForSrcdoc(exportHtml)}'></iframe>`;
     
-    // Показываем код в страховочном окошке
+    // Показываем код во вкладке Экспорт
     if($('iframeOut')) $('iframeOut').value = iframeCode;
     setStatus('готово');
   } catch(e) { console.error(e); setStatus('ошибка'); }
@@ -2067,35 +2053,35 @@ document.addEventListener('change', (e)=>{ if(e.target.closest('.pane.left')) sc
 
 const translations = {
   ru: {
-    tasks: "Задания", look: "Внешний вид", gears: "Шестерёнки", screens: "Заставки", export: "Экспорт",
+    tasks: "Задания", look: "Внешний вид", gears: "Шестерёнки", screens: "Заставки", audio: "Аудио", export: "Экспорт",
     langLabel: "Язык интерфейса:", baseParams: "Базовые параметры",
     taskCount: "Кол-во задач:", timePerQ: "Время (с):", lives: "Жизни:",
     tasksLabel: "Список заданий", applyBtn: "Обновить превью",
     copyBtn: "Скопировать код", resetBtn: "Сбросить"
   },
   en: {
-    tasks: "Tasks", look: "Appearance", gears: "Gears", screens: "Screens", export: "Export",
+    tasks: "Tasks", look: "Appearance", gears: "Gears", screens: "Screens", audio: "Audio", export: "Export",
     langLabel: "Language:", baseParams: "Basic Parameters",
     taskCount: "Tasks count:", timePerQ: "Time (sec):", lives: "Lives:",
     tasksLabel: "Task List", applyBtn: "Update Preview",
     copyBtn: "Copy code", resetBtn: "Reset"
   },
   de: {
-    tasks: "Aufgaben", look: "Aussehen", gears: "Zahnräder", screens: "Bildschirme", export: "Exportieren",
+    tasks: "Aufgaben", look: "Aussehen", gears: "Zahnräder", screens: "Bildschirme", audio: "Audio", export: "Exportieren",
     langLabel: "Sprache:", baseParams: "Basisparameter",
     taskCount: "Aufgabenanzahl:", timePerQ: "Zeit (sek):", lives: "Leben:",
     tasksLabel: "Aufgabenliste", applyBtn: "Vorschau aktual.",
     copyBtn: "Code kopieren", resetBtn: "Zurücksetzen"
   },
   fr: {
-    tasks: "Tâches", look: "Apparence", gears: "Engrenages", screens: "Écrans", export: "Exporter",
+    tasks: "Tâches", look: "Apparence", gears: "Engrenages", screens: "Écrans", audio: "Audio", export: "Exporter",
     langLabel: "Langue:", baseParams: "Paramètres de base",
     taskCount: "Nombre de tâches:", timePerQ: "Temps (sec):", lives: "Vies:",
     tasksLabel: "Liste des tâches", applyBtn: "Mettre à jour l'aperçu",
     copyBtn: "Copier le code", resetBtn: "Réinitialiser"
   },
   es: {
-    tasks: "Tareas", look: "Apariencia", gears: "Engranajes", screens: "Pantallas", export: "Exportar",
+    tasks: "Tareas", look: "Apariencia", gears: "Engranajes", screens: "Pantallas", audio: "Audio", export: "Exportar",
     langLabel: "Idioma:", baseParams: "Parámetros básicos",
     taskCount: "Número de tareas:", timePerQ: "Tiempo (seg):", lives: "Vidas:",
     tasksLabel: "Lista de tareas", applyBtn: "Actualizar vista previa",
@@ -2106,7 +2092,7 @@ const translations = {
 if($('langSelect')) {
   $('langSelect').addEventListener('change', function() {
     const lang = this.value; const t = translations[lang]; if(!t) return;
-    const tabs = ['tasks', 'look', 'gears', 'screens', 'export'];
+    const tabs = ['tasks', 'look', 'gears', 'screens', 'audio', 'export'];
     tabs.forEach(tab => { const el = document.querySelector(`[data-tab="${tab}"]`); if(el) el.textContent = t[tab]; });
     if(this.previousElementSibling) this.previousElementSibling.textContent = t.langLabel;
     const idsMap = { 'ttl_baseParams': 'baseParams', 'lbl_taskCount': 'taskCount', 'lbl_timePerQ': 'timePerQ', 'lbl_lives': 'lives', 'tasksLabel': 'tasksLabel', 'applyBtn': 'applyBtn', 'copyBtn': 'copyBtn', 'resetBtn': 'resetBtn' };
