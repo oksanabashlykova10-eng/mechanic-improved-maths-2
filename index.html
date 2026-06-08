@@ -138,7 +138,7 @@
   .ptBtn.active { background:rgba(0,255,213,.15); color:var(--txt); }
   .ptBtn:hover:not(.active) { background:rgba(255,255,255,.05); }
 
-  /* ИСПРАВЛЕНИЕ: Контейнер с жесткой пропорцией 16:9, как в Genially */
+  /* ЖЕСТКИЙ ВИРТУАЛЬНЫЙ ЭКРАН 1280x720 (Абсолютное соответствие пропорциям) */
   .preview-container {
     flex: 1 1 auto;
     display: flex;
@@ -146,24 +146,25 @@
     justify-content: center;
     background: rgba(0,0,0,0.15);
     border-radius: 0 0 18px 18px;
-    padding: 14px;
     overflow: hidden;
+    position: relative;
   }
   .preview-wrapper {
-    width: 100%;
-    max-width: 1200px;
-    aspect-ratio: 16 / 9;
+    width: 1280px;
+    height: 720px;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin-left: -640px; /* Половина ширины */
+    margin-top: -360px;  /* Половина высоты */
+    transform-origin: center center;
     background: #000;
     box-shadow: 0 10px 40px rgba(0,0,0,0.5);
     border-radius: 12px;
-    position: relative;
-    overflow: hidden;
   }
   iframe#preview {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%;
-    height: 100%;
+    width: 1280px;
+    height: 720px;
     border: none;
     display: block;
     background: transparent;
@@ -1028,6 +1029,7 @@ if(tabWrap) {
     document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
     const targetSec = document.getElementById('sec_'+key);
     if(targetSec) targetSec.classList.add('active');
+    updatePreviewScale();
   });
 }
 
@@ -1074,43 +1076,54 @@ $('taskCount')?.addEventListener('change', updateCountsUI);
 
 
 /* ===========================
-   Глобальное состояние позиций (Теперь в %!)
+   Глобальное состояние позиций (В процентах и пикселях)
 =========================== */
 let qPanelState = {
-  w: '85%',
-  h: '110px',
-  top: '2%',
-  left: '50%',
-  transform: 'translateX(-50%)'
+  w: '1080px', h: '110px', top: '5%', left: '50%'
 };
 
 let mechState = {
-  left: '50%',
-  top: '60%',
-  transform: 'translate(-50%, -50%)'
+  left: '50%', top: '60%'
 };
 
+/* Идеальное масштабирование окна предпросмотра (только для редактора) */
+function updatePreviewScale() {
+  const container = document.getElementById('previewContainer');
+  const wrapper = document.getElementById('previewWrapper');
+  if(!container || !wrapper) return;
+  
+  const cw = container.clientWidth - 28;
+  const ch = container.clientHeight - 28;
+  
+  const scale = Math.min(cw / 1280, ch / 720);
+  wrapper.style.transform = `scale(${scale})`;
+}
+window.addEventListener('resize', updatePreviewScale);
+setTimeout(updatePreviewScale, 100);
+
+/* Получение координат и мгновенное обновление экспорта без перезагрузки предпросмотра */
 window.addEventListener('message', e => {
   if (e.data) {
     let changed = false;
     if (e.data.type === 'qUpdate') {
-       qPanelState.w = Math.round(e.data.w) + 'px';
-       qPanelState.h = Math.round(e.data.h) + 'px';
+       qPanelState.w = e.data.w;
+       qPanelState.h = e.data.h;
        qPanelState.top = e.data.top;
        qPanelState.left = e.data.left;
-       qPanelState.transform = 'none';
        changed = true;
     }
     else if (e.data.type === 'mechUpdate') {
        mechState.top = e.data.top;
        mechState.left = e.data.left;
-       mechState.transform = 'none';
        if($('mechX')) $('mechX').value = mechState.left;
        if($('mechY')) $('mechY').value = mechState.top;
        changed = true;
     }
-    // Как только координаты обновились - мгновенно запускаем перегенерацию кода
-    if (changed) scheduleAuto(); 
+    
+    // Мгновенно обновляем ТОЛЬКО поле экспорта
+    if (changed) {
+        updateExportOnly();
+    }
   }
 });
 
@@ -1257,14 +1270,12 @@ function buildGameHtml(state, isPreviewMode = false, viewMode = 'screen'){
              el.style.border = "2px dashed #00ffd5";
              el.style.resize = "both";
              el.style.overflow = "hidden";
-             el.title = "Потяните за правый нижний угол. Хватайте в любом месте для перемещения.";
          } else {
              el.style.border = "2px dashed rgba(255,255,255,0.25)";
-             el.title = "Хватайте для перемещения всей композиции";
          }
 
          let isDragging = false;
-         let startX, startY, initialLeftPx, initialTopPx;
+         let startX, startY, startLeftPerc, startTopPerc;
 
          el.addEventListener('mousedown', function(e) {
             if(typeof stopTimer === 'function') stopTimer();
@@ -1277,79 +1288,65 @@ function buildGameHtml(state, isPreviewMode = false, viewMode = 'screen'){
             startX = e.clientX;
             startY = e.clientY;
 
-            const parentRect = el.parentElement.getBoundingClientRect();
-            initialLeftPx = rect.left - parentRect.left;
-            initialTopPx = rect.top - parentRect.top;
+            // Считываем текущую позицию (без поломки transform: translate!)
+            let currL = parseFloat(el.style.left || window.getComputedStyle(el).left) || 0;
+            let currT = parseFloat(el.style.top || window.getComputedStyle(el).top) || 0;
 
-            if (el.style.transform && el.style.transform !== 'none') {
-                el.style.transform = 'none';
-            }
-            el.style.left = initialLeftPx + 'px';
-            el.style.top = initialTopPx + 'px';
+            if (!(el.style.left || "").includes('%')) currL = (currL / 1280) * 100;
+            if (!(el.style.top || "").includes('%')) currT = (currT / 720) * 100;
+
+            startLeftPerc = currL;
+            startTopPerc = currT;
          });
 
          window.addEventListener('mousemove', function(e) {
-            if(isDragging) {
-               let dx = e.clientX - startX;
-               let dy = e.clientY - startY;
-               
-               let parentW = el.parentElement.offsetWidth;
-               let parentH = el.parentElement.offsetHeight;
-               
-               let percLeft = ((initialLeftPx + dx) / parentW) * 100;
-               let percTop = ((initialTopPx + dy) / parentH) * 100;
-               
-               el.style.left = percLeft.toFixed(2) + '%';
-               el.style.top = percTop.toFixed(2) + '%';
-            }
+            if(!isDragging) return;
+            
+            let dx = e.clientX - startX;
+            let dy = e.clientY - startY;
+
+            let newLeftPerc = startLeftPerc + (dx / 1280) * 100;
+            let newTopPerc = startTopPerc + (dy / 720) * 100;
+
+            el.style.left = newLeftPerc.toFixed(2) + '%';
+            el.style.top = newTopPerc.toFixed(2) + '%';
          });
 
+         let debounceTimer;
          window.addEventListener('mouseup', function(e) {
-            if(isDragging) {
-               isDragging = false;
-               notifyParent();
-            }
+            if(!isDragging) return;
+            isDragging = false;
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                window.parent.postMessage({
+                    type: typeName,
+                    w: Math.round(el.offsetWidth) + 'px',
+                    h: Math.round(el.offsetHeight) + 'px',
+                    left: el.style.left,
+                    top: el.style.top
+                }, '*');
+            }, 50);
          });
 
          if (typeName === 'qUpdate') {
              let lastW = el.offsetWidth;
              let lastH = el.offsetHeight;
-             const ro = new ResizeObserver(() => {
-                if(!isDragging && (el.offsetWidth !== lastW || el.offsetHeight !== lastH)) {
-                   lastW = el.offsetWidth;
-                   lastH = el.offsetHeight;
-                   notifyParent(); 
-                }
-             });
-             ro.observe(el);
-         }
-
-         let debounceTimer;
-         function notifyParent() {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-              let leftVal = el.style.left;
-              let topVal = el.style.top;
-              
-              if (!leftVal || !leftVal.endsWith('%')) {
-                  const r = el.getBoundingClientRect();
-                  const p = el.parentElement.getBoundingClientRect();
-                  leftVal = (((r.left - p.left) / p.width) * 100).toFixed(2) + '%';
-              }
-              if (!topVal || !topVal.endsWith('%')) {
-                  const r = el.getBoundingClientRect();
-                  const p = el.parentElement.getBoundingClientRect();
-                  topVal = (((r.top - p.top) / p.height) * 100).toFixed(2) + '%';
-              }
-
-              window.parent.postMessage({
-                 type: typeName,
-                 w: el.offsetWidth,
-                 h: el.offsetHeight,
-                 top: topVal,
-                 left: leftVal
-              }, '*');
-            }, 50); 
+             new ResizeObserver(() => {
+                 if (!isDragging && (el.offsetWidth !== lastW || el.offsetHeight !== lastH)) {
+                     lastW = el.offsetWidth;
+                     lastH = el.offsetHeight;
+                     clearTimeout(debounceTimer);
+                     debounceTimer = setTimeout(() => {
+                         window.parent.postMessage({
+                             type: typeName,
+                             w: Math.round(el.offsetWidth) + 'px',
+                             h: Math.round(el.offsetHeight) + 'px',
+                             left: el.style.left,
+                             top: el.style.top
+                         }, '*');
+                     }, 50);
+                 }
+             }).observe(el);
          }
       }
 
@@ -1374,11 +1371,9 @@ ${mathJaxScript}
 
     --qTop:${state.qTop};
     --qLeft:${state.qLeft};
-    --qTransform:${state.qTransform};
     
     --mechLeft:${state.mechLeft};
     --mechTop:${state.mechTop};
-    --mechTransform:${state.mechTransform};
 
     --centerLift:${state.centerLift}px;
     --gearGapPx:${state.gearGap}px;
@@ -1423,28 +1418,41 @@ ${mathJaxScript}
 
   *, *::before, *::after { box-sizing: border-box; }
 
-  html,body{
-    margin:0; width:100%; height:100%; overflow:hidden;
-    ${state.bgMode==='transparent' ? 'background:transparent;' : 'background:#000;'}
-    font-family:Arial, sans-serif;
+  html, body {
+    margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; background: transparent;
   }
-  #APP{position:relative;width:100%;height:100%; overflow:hidden;}
+  
+  /* Контейнер фона - всегда заполняет 100% площади экрана Genially */
+  #game-container {
+    position: absolute; inset: 0; width: 100vw; height: 100vh; overflow: hidden;
+    display: flex; align-items: center; justify-content: center; background: transparent;
+  }
+
+  /* Слой фона - отвязан от масштабирования игровых элементов */
+  #BG {
+    position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;
+    ${bgCSS}
+    filter: saturate(1.05) contrast(1.05); z-index: 0;
+  }
+  #BG::after {
+    content:""; position:absolute; inset:0; background:rgba(0,0,0,.14); pointer-events:none;
+  }
+
+  /* ЖЕСТКИЙ ХОЛСТ 16:9: Все элементы внутри живут в сетке 1280x720 и масштабируются вместе */
+  #APP {
+    position: relative; width: 1280px; height: 720px; transform-origin: center center; flex: 0 0 auto; z-index: 1;
+    font-family: Arial, sans-serif; pointer-events: none;
+  }
+  
   #APP.locked #HUD, #APP.locked #QUESTION, #APP.locked #MECH{ visibility:hidden; }
 
-  #BG{
-    position:absolute; inset:0;
-    ${bgCSS}
-    filter:saturate(1.05) contrast(1.05);
-  }
-  #BG::after{content:""; position:absolute; inset:0; background:rgba(0,0,0,.14);}
-
-  #HUD{ position:absolute; inset:0 auto auto 0; width:100%; padding:14px 16px; z-index:6; pointer-events:none; }
-  #HUDleft{ pointer-events:auto; position:absolute; left:16px; top:14px; display:flex; flex-direction:column; gap:12px; align-items:flex-start; }
-  #HUDright{ pointer-events:auto; position:absolute; right:16px; top:14px; display:flex; gap:12px; align-items:flex-start; }
+  #HUD{ position:absolute; inset:0 auto auto 0; width:100%; padding:20px 24px; z-index:6; pointer-events:none; }
+  #HUDleft{ pointer-events:auto; position:absolute; left:24px; top:20px; display:flex; flex-direction:column; gap:16px; align-items:flex-start; }
+  #HUDright{ pointer-events:auto; position:absolute; right:24px; top:20px; display:flex; gap:16px; align-items:flex-start; }
 
   #lives{
-    display:flex; gap:10px; align-items:center;
-    padding:12px 14px; border-radius:18px;
+    display:flex; gap:12px; align-items:center;
+    padding:16px 20px; border-radius:20px;
     background:rgba(0,0,0,.34); backdrop-filter: blur(6px);
     box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 0 0 2px rgba(255,43,43,.18) inset, 0 0 22px rgba(255,43,43,.14);
   }
@@ -1460,31 +1468,31 @@ ${mathJaxScript}
   .heart.off{opacity:.18; filter:none;}
 
   #progress{
-    display:grid; grid-template-columns: repeat(2, 1fr); gap:10px;
-    padding:12px 14px; border-radius:18px;
+    display:grid; grid-template-columns: repeat(2, 1fr); gap:12px;
+    padding:16px 20px; border-radius:20px;
     background:rgba(0,0,0,.34); backdrop-filter: blur(6px);
     box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 0 0 2px rgba(var(--uiRGB),.18) inset, 0 0 var(--uiGlow) rgba(var(--uiRGB),.25);
   }
   .pbox{
-    width:54px; height:54px; border-radius:16px;
-    border:2px solid rgba(var(--uiRGB),.72);
+    width:64px; height:64px; border-radius:18px;
+    border:3px solid rgba(var(--uiRGB),.72);
     background:rgba(0,0,0,.22);
-    box-shadow:0 0 14px rgba(var(--uiRGB),.18);
+    box-shadow:0 0 16px rgba(var(--uiRGB),.18);
     display:grid; place-items:center; overflow:hidden;
   }
   .pbox.filled::before{
-    content:""; width:42px;height:42px;
+    content:""; width:48px;height:48px;
     background:url('${state.markerURL}') center/contain no-repeat;
     filter:drop-shadow(0 0 var(--uiGlow) rgba(var(--uiRGB),.55));
     opacity:.95;
   }
 
   #timerWrap{
-    display:flex; align-items:center; gap:12px;
-    padding:12px 16px; border-radius:18px;
+    display:flex; align-items:center; gap:16px;
+    padding:16px 24px; border-radius:20px;
     background:rgba(0,0,0,.34); backdrop-filter: blur(6px);
     box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 0 0 2px rgba(var(--uiRGB),.18) inset, 0 0 var(--uiGlow) rgba(var(--uiRGB),.25);
-    user-select:none; margin-right: 40px; 
+    user-select:none; margin-right: 60px; pointer-events:auto;
   }
   #timerIcon{
     width:var(--timerIconSize); height:var(--timerIconSize);
@@ -1492,7 +1500,7 @@ ${mathJaxScript}
     filter:drop-shadow(0 0 var(--uiGlow) rgba(var(--uiRGB),.55));
   }
   #timerText{
-    min-width:52px; line-height:1; font-weight:900;
+    min-width:64px; line-height:1; font-weight:900;
     font-family:var(--timerFont); font-size:var(--timerFontSize);
     color:var(--timerColor); text-align:right;
   }
@@ -1505,20 +1513,20 @@ ${mathJaxScript}
   @keyframes pulseDanger{from{transform:scale(1)}to{transform:scale(1.05)}}
 
   #musicBtn{
-    width:56px;height:56px; border-radius:18px; border:none; cursor:pointer;
+    width:72px;height:72px; border-radius:20px; border:none; cursor:pointer;
     background:rgba(0,0,0,.34); backdrop-filter: blur(6px);
     box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 0 0 2px rgba(var(--uiRGB),.18) inset, 0 0 var(--uiGlow) rgba(var(--uiRGB),.25);
-    color:var(--qColor); font-size:24px; font-weight:900; pointer-events:auto;
+    color:var(--qColor); font-size:32px; font-weight:900; pointer-events:auto;
     transition:transform .12s ease, box-shadow .12s ease, opacity .12s ease;
   }
-  #musicBtn:hover{transform:translateY(-1px); box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 0 0 2px rgba(var(--uiRGB),.35) inset, 0 0 var(--uiGlow) rgba(var(--uiRGB),.35);}
+  #musicBtn:hover{transform:translateY(-2px); box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 0 0 2px rgba(var(--uiRGB),.35) inset, 0 0 var(--uiGlow) rgba(var(--uiRGB),.35);}
   #musicBtn.off{opacity:.55}
 
   #QUESTION{
-    position:absolute; left:var(--qLeft); top:var(--qTop); transform:var(--qTransform);
+    position:absolute; left:var(--qLeft); top:var(--qTop); transform:translateX(-50%);
     width:var(--qPanelW); max-width:calc(100% - var(--qReserve)); height:var(--qPanelH); 
     z-index:5; display:flex; align-items:center; justify-content:center;
-    padding:12px 28px; text-align:center; font-weight:900;
+    padding:16px 36px; text-align:center; font-weight:900;
     font-family:var(--qFont); font-size:var(--qSize); color:var(--qColor);
     line-height:1.12; pointer-events:none; 
   }
@@ -1534,14 +1542,14 @@ ${mathJaxScript}
   }
 
   #MECH{
-    position:absolute; left:var(--mechLeft); top:var(--mechTop); transform:var(--mechTransform);
-    width:min(980px, 96vw); height:min(580px, 70vh);
+    position:absolute; left:var(--mechLeft); top:var(--mechTop); transform:translate(-50%, -50%);
+    width: 980px; height: 580px;
     z-index:4; pointer-events:none; 
   }
   
   #center{
     position:absolute; left:50%; top:calc(56% - var(--centerLift)); transform:translate(-50%,-50%);
-    width:min(var(--centerSizePx), 50vw); aspect-ratio:1/1;
+    width:var(--centerSizePx); aspect-ratio:1/1;
     background:url('${state.centerURL}') center/contain no-repeat;
     filter:drop-shadow(0 20px 32px rgba(0,0,0,.55));
     pointer-events:auto; z-index:3; transition: filter 0.2s; 
@@ -1551,7 +1559,7 @@ ${mathJaxScript}
 
   .gear{
     position:absolute; left:50%; top:calc(56% - var(--centerLift));
-    width:min(var(--gearSizePx), 35vw); aspect-ratio:1/1; transform:translate(-50%,-50%);
+    width:var(--gearSizePx); aspect-ratio:1/1; transform:translate(-50%,-50%);
     display:grid; place-items:center; cursor:pointer;
     z-index:2; pointer-events:auto; touch-action: manipulation;
   }
@@ -1560,8 +1568,8 @@ ${mathJaxScript}
     filter:drop-shadow(0 16px 24px rgba(0,0,0,.52)); pointer-events:none;
   }
   .gear .label{
-    position:relative; max-width:78%; padding:10px 12px; border-radius:14px; background:var(--aBgRGBA);
-    box-shadow: 0 0 0 1px rgba(255,255,255,.15);
+    position:relative; max-width:85%; padding:12px 16px; border-radius:18px; background:var(--aBgRGBA);
+    box-shadow: 0 0 0 2px rgba(255,255,255,.15);
     font-weight:900; text-align:center; line-height:1.05;
     font-family:var(--aFont); font-size:var(--aSize); color:var(--aColor);
     transform:translateY(var(--aShiftY)); will-change:transform;
@@ -1571,9 +1579,9 @@ ${mathJaxScript}
   .shake{animation:shake .25s;}
   @keyframes shake{
     0%{transform:translate(-50%,-50%)}
-    25%{transform:translate(calc(-50% - 4px),calc(-50% + 3px))}
-    50%{transform:translate(calc(-50% + 4px),calc(-50% - 3px))}
-    75%{transform:translate(calc(-50% - 3px),calc(-50% + 2px))}
+    25%{transform:translate(calc(-50% - 6px),calc(-50% + 4px))}
+    50%{transform:translate(calc(-50% + 6px),calc(-50% - 4px))}
+    75%{transform:translate(calc(-50% - 4px),calc(-50% + 3px))}
     100%{transform:translate(-50%,-50%)}
   }
 
@@ -1581,42 +1589,42 @@ ${mathJaxScript}
   #OVERLAY{
     position:absolute !important; inset:0 !important; width:100% !important; height:100% !important;
     z-index:999999 !important; display:flex !important; align-items:center !important; justify-content:center !important;
-    padding:22px !important; background:${overlayBgRGBA} !important; backdrop-filter: blur(8px) !important;
+    padding:32px !important; background:${overlayBgRGBA} !important; backdrop-filter: blur(12px) !important; pointer-events:auto !important;
   }
   #OVERLAY.hidden{ opacity:0 !important; pointer-events:none !important; visibility:hidden !important; }
   #OVERLAY .overlayCard{
-    width:min(980px, 92vw) !important; border-radius:26px !important; padding:30px 30px 26px !important;
-    background:rgba(0,0,0,.28) !important; border:2px solid rgba(var(--uiRGB),.38) !important;
-    box-shadow: 0 0 0 1px rgba(255,255,255,.04) inset, 0 0 var(--uiGlow) rgba(var(--uiRGB),.15), 0 18px 60px rgba(0,0,0,.55) !important;
+    width: 980px !important; border-radius:32px !important; padding:40px 40px 32px !important;
+    background:rgba(0,0,0,.28) !important; border:3px solid rgba(var(--uiRGB),.38) !important;
+    box-shadow: 0 0 0 2px rgba(255,255,255,.04) inset, 0 0 var(--uiGlow) rgba(var(--uiRGB),.15), 0 24px 80px rgba(0,0,0,.65) !important;
     text-align:center !important; position:relative !important; overflow:hidden !important; margin:0 auto !important;
-    transform: translateY(${state.overlayLiftVh}vh) !important;
+    transform: translateY(calc(${state.overlayLiftVh} * 7.2px)) !important;
   }
   #OVERLAY .overlayCard::before{
-    content:""; position:absolute; inset:-2px; pointer-events:none;
+    content:""; position:absolute; inset:-3px; pointer-events:none;
     background: radial-gradient(60% 80% at 50% 30%, rgba(var(--uiRGB),.10), transparent 70%),
                 radial-gradient(60% 80% at 50% 100%, rgba(var(--uiRGB),.06), transparent 70%);
   }
   #OVERLAY .overlayCard.danger{ border-color:rgba(255,43,43,.44) !important; }
   #startMask{
-    width:86px; height:86px; margin:0 auto 14px; background:url('${state.centerURL}') center/contain no-repeat;
-    filter: drop-shadow(0 16px 26px rgba(0,0,0,.65)) drop-shadow(0 0 var(--uiGlow) rgba(var(--uiRGB),.35)); opacity:.95;
+    width:110px; height:110px; margin:0 auto 20px; background:url('${state.centerURL}') center/contain no-repeat;
+    filter: drop-shadow(0 20px 32px rgba(0,0,0,.65)) drop-shadow(0 0 var(--uiGlow) rgba(var(--uiRGB),.35)); opacity:.95;
   }
   #OVERLAY .title{
     font-weight:900 !important; font-family:var(--ovTitleFont) !important; font-size:var(--ovTitleSize) !important;
-    margin:0 0 10px !important; color:var(--ovTitleColor) !important; line-height:1.03 !important; letter-spacing:.3px !important;
-    text-shadow: 0 0 var(--uiGlow) rgba(var(--uiRGB),.30), 0 2px 18px rgba(0,0,0,.9) !important;
+    margin:0 0 16px !important; color:var(--ovTitleColor) !important; line-height:1.03 !important; letter-spacing:.4px !important;
+    text-shadow: 0 0 var(--uiGlow) rgba(var(--uiRGB),.30), 0 4px 24px rgba(0,0,0,.9) !important;
   }
   #OVERLAY .subtitle{
     font-family:var(--ovTextFont) !important; font-size:var(--ovTextSize) !important; color:var(--ovTextColor) !important;
-    opacity:.95 !important; margin:0 auto 20px !important; max-width:780px !important; line-height:1.28 !important;
-    text-shadow:0 2px 14px rgba(0,0,0,.86) !important;
+    opacity:.95 !important; margin:0 auto 28px !important; max-width:880px !important; line-height:1.35 !important;
+    text-shadow:0 3px 18px rgba(0,0,0,.86) !important;
   }
-  #OVERLAY .rowBtns{ display:flex !important; gap:14px !important; justify-content:center !important; flex-wrap:wrap !important; }
+  #OVERLAY .rowBtns{ display:flex !important; gap:18px !important; justify-content:center !important; flex-wrap:wrap !important; }
   #OVERLAY .btnMain{
-    cursor:pointer !important; border:none !important; padding:14px 26px !important; border-radius:18px !important;
-    font-weight:900 !important; letter-spacing:.6px !important; color:var(--ovTitleColor) !important;
-    background:rgba(0,0,0,.38) !important; box-shadow: 0 0 0 2px rgba(var(--uiRGB),.42), 0 0 var(--uiGlow) rgba(var(--uiRGB),.14) !important;
-    text-shadow:0 2px 14px rgba(0,0,0,.92) !important; font-size:16px !important; min-width:190px !important;
+    cursor:pointer !important; border:none !important; padding:18px 32px !important; border-radius:24px !important;
+    font-weight:900 !important; letter-spacing:.8px !important; color:var(--ovTitleColor) !important;
+    background:rgba(0,0,0,.38) !important; box-shadow: 0 0 0 3px rgba(var(--uiRGB),.42), 0 0 var(--uiGlow) rgba(var(--uiRGB),.14) !important;
+    text-shadow:0 3px 18px rgba(0,0,0,.92) !important; font-size:20px !important; min-width:240px !important;
     display:inline-flex !important; align-items:center !important; justify-content:center !important; white-space:nowrap !important;
     transition:transform .14s ease, box-shadow .14s ease, background .14s ease !important;
   }
@@ -1625,36 +1633,49 @@ ${mathJaxScript}
 </style>
 </head>
 <body>
-<div id="APP">
+<div id="game-container">
   <div id="BG"></div>
-  <div id="HUD">
-    <div id="HUDleft"><div id="lives"></div><div id="progress"></div></div>
-    <div id="HUDright">
-      <div id="timerWrap"><div id="timerIcon"></div><div id="timerText">${state.timePerQ}</div></div>
-      <button id="musicBtn" title="Music"></button>
+  <div id="APP">
+    <div id="HUD">
+      <div id="HUDleft"><div id="lives"></div><div id="progress"></div></div>
+      <div id="HUDright">
+        <div id="timerWrap"><div id="timerIcon"></div><div id="timerText">${state.timePerQ}</div></div>
+        <button id="musicBtn" title="Music"></button>
+      </div>
     </div>
-  </div>
 
-  <div id="QUESTION"><div id="QTEXT"></div></div>
+    <div id="QUESTION"><div id="QTEXT"></div></div>
 
-  <div id="MECH">
-    <div id="center"></div>
-    ${gearHTML}
-  </div>
-
-  <div id="OVERLAY">
-    <div class="overlayCard" id="ovCard">
-      <div id="startMask"></div>
-      <div class="title" id="ovTitle"></div>
-      <div class="subtitle" id="ovText"></div>
-      <div class="rowBtns" id="ovBtns"></div>
+    <div id="MECH">
+      <div id="center"></div>
+      ${gearHTML}
     </div>
-  </div>
 
-  <audio id="bgm" preload="auto" loop></audio>
+    <div id="OVERLAY">
+      <div class="overlayCard" id="ovCard">
+        <div id="startMask"></div>
+        <div class="title" id="ovTitle"></div>
+        <div class="subtitle" id="ovText"></div>
+        <div class="rowBtns" id="ovBtns"></div>
+      </div>
+    </div>
+
+    <audio id="bgm" preload="auto" loop></audio>
+  </div>
 </div>
 
 <script>
+// Авто-масштабатор 16:9 для Genially: масштабирует только контент, фон остаётся на 100%
+function resizeApp() {
+    const app = document.getElementById('APP');
+    const cw = window.innerWidth;
+    const ch = window.innerHeight;
+    const scale = Math.min(cw / 1280, ch / 720);
+    app.style.transform = \`scale(\${scale})\`;
+}
+window.addEventListener('resize', resizeApp);
+resizeApp();
+
 const MUSIC_URL = ${JSON.stringify(MUSIC_URL)};
 const TIME_PER_Q = ${state.timePerQ};
 const DANGER_AT = ${state.dangerAt};
@@ -1697,7 +1718,7 @@ function applyQuestionLayout(){
     if(size <= minFont) break;
   }
 }
-window.addEventListener('resize', ()=>{ if(!overlay.classList.contains('hidden')) return; applyQuestionLayout(); });
+window.addEventListener('resize', ()=>{ if(!el("OVERLAY").classList.contains('hidden')) return; applyQuestionLayout(); });
 
 const overlay = el("OVERLAY"), ovTitle = el("ovTitle"), ovText = el("ovText"), ovBtns = el("ovBtns"), ovCard = el("ovCard"), startMask = el("startMask");
 const musicBtn = el("musicBtn"), bgm = el("bgm");
@@ -1859,7 +1880,7 @@ function startFireworks() {
   if (FW_TYPE === 'none') return;
   const canvas = document.createElement('canvas');
   Object.assign(canvas.style, { position: 'fixed', top: '0', left: '0', width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: '2147483647', display: 'block' });
-  const container = document.getElementById('APP') || document.body; container.appendChild(canvas);
+  const container = document.getElementById('game-container') || document.body; container.appendChild(canvas);
   const ctx = canvas.getContext('2d'); canvas.width = window.innerWidth; canvas.height = window.innerHeight;
   let particles = [];
   let colors = ['#FFD700', '#FFCC00', '#FFA500', '#FFFFFF', '#00ffd5', '#ff2b2b'];
@@ -1956,8 +1977,8 @@ async function collectState(){
     
     mathOn: $('mathOn') ? $('mathOn').checked : true,
 
-    qPanelW: qPanelState.w, qPanelH: qPanelState.h, qTop: qPanelState.top, qLeft: qPanelState.left, qTransform: qPanelState.transform,
-    mechLeft: formatPos($('mechX')?.value, '50%'), mechTop: formatPos($('mechY')?.value, '60%'), mechTransform: mechState.transform,
+    qPanelW: qPanelState.w, qPanelH: qPanelState.h, qTop: qPanelState.top, qLeft: qPanelState.left,
+    mechLeft: formatPos($('mechX')?.value, '50%'), mechTop: formatPos($('mechY')?.value, '60%'),
 
     qFont: $('qFont')?.value || "Arial, sans-serif", qFontSize: +$('qFontSize')?.value || 22, qColor: $('qColor')?.value || "#eaffff", qMaxLines: Math.max(1, Math.min(6, +$('qMaxLines')?.value || 2)), qAutoFit: $('qAutoFit') ? $('qAutoFit').checked : true, qMinFont: Math.max(10, Math.min(32, +$('qMinFont')?.value || 14)), qReserve: Math.max(100, Math.min(520, +$('qReserve')?.value || 320)),
     aFont: $('aFont')?.value || "Arial, sans-serif", aFontSize: +$('aFontSize')?.value || 18, aColor: $('aColor')?.value || "#eaffff", aBgColor: $('aBgColor')?.value || "#000000", aBgAlpha: Math.max(0, Math.min(1, +$('aBgAlpha')?.value || 0.5)), aShiftY: +$('aShiftY')?.value || 0,
@@ -1981,29 +2002,36 @@ async function collectState(){
 }
 
 /* ===========================
-   Apply / Preview / Sync Copy
+   ОБНОВЛЕНИЕ ПРЕДПРОСМОТРА И ЭКСПОРТА
 =========================== */
+// Обновляет ТОЛЬКО поле с кодом (вызывается после перетаскивания, чтобы не моргал экран)
+async function updateExportOnly(passedState = null) {
+  const state = passedState || await collectState();
+  const exportHtml = buildGameHtml(state, false, 'screen');
+  
+  // Добавлены атрибуты width и height, чтобы Genially вставлял фрейм правильно!
+  const iframeCode = `<iframe width="1280" height="720" style="width:100%;height:100%;border:0;" srcdoc='${escForSrcdoc(exportHtml)}'></iframe>`;
+  
+  if($('iframeOut')) $('iframeOut').value = iframeCode;
+  setStatus('код обновлен ⚡');
+}
+
+// Полное обновление (и предпросмотра, и кода)
 async function applyPreview(){
   setStatus('обновляю…');
   try {
     const state = await collectState();
     
-    // Обновляем окно предпросмотра
     const previewHtml = buildGameHtml(state, true, currentPreviewView);
     if($('preview')) $('preview').srcdoc = previewHtml;
     
-    // Генерируем финальный код игры в фоне
-    const exportHtml = buildGameHtml(state, false, 'screen');
+    setTimeout(updatePreviewScale, 50); // Убедимся, что масштаб применился
     
-    const iframeCode = `<iframe style="width:100%;height:100%;border:0" srcdoc='${escForSrcdoc(exportHtml)}'></iframe>`;
-    
-    // Показываем код во вкладке Экспорт
-    if($('iframeOut')) $('iframeOut').value = iframeCode;
-    setStatus('готово');
+    await updateExportOnly(state);
   } catch(e) { console.error(e); setStatus('ошибка'); }
 }
 
-// Умная кнопка копирования (исправленная для работы в Genially)
+// Умная кнопка копирования 
 if($('copyBtn')) {
   $('copyBtn').addEventListener('click', async () => {
     const ta = $('iframeOut');
@@ -2015,7 +2043,6 @@ if($('copyBtn')) {
     ta.focus();
     ta.select();
 
-    // 1. Пытаемся скопировать новым API
     try {
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(ta.value);
@@ -2024,7 +2051,6 @@ if($('copyBtn')) {
       }
     } catch(err) {}
 
-    // 2. Пытаемся скопировать старым API
     try {
       const res = document.execCommand('copy');
       if(res) {
@@ -2033,9 +2059,8 @@ if($('copyBtn')) {
       }
     } catch(e) {}
 
-    // 3. Если Genially блокирует всё - даем подсказку
     setStatus('выделено');
-    alert('Genially блокирует авто-копирование кнопок внутри себя.\\n\\nНо не переживайте, код уже выделен!\\n\\nПросто нажмите Ctrl+C (или Cmd+C на Mac) на клавиатуре, чтобы скопировать его вручную.');
+    alert('Система безопасности браузера заблокировала авто-копирование.\n\nКод уже выделен! Нажмите Ctrl+C (или Cmd+C), чтобы скопировать его вручную.');
   });
 }
 
@@ -2070,8 +2095,8 @@ if($('resetBtn')) $('resetBtn').addEventListener('click', ()=>{
   setVal('bgMode', "url"); setVal('bgUrl', "https://img.genially.com/67961b32a116fb001568a75e/d58b1f28-a8e9-4bdf-93d2-0e9c18b8588c.png"); setVal('bgColor', "#000000");
   
   setVal('qFont', "Arial, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"); setVal('qFontSize', 22); setVal('qColor', "#eaffff");
-  qPanelState = { w: '85%', h: '110px', top: '2%', left: '50%', transform: 'translateX(-50%)' };
-  mechState = { left: '50%', top: '60%', transform: 'translate(-50%,-50%)' };
+  qPanelState = { w: '1080px', h: '110px', top: '5%', left: '50%' };
+  mechState = { left: '50%', top: '60%' };
   
   setVal('qMaxLines', 2); setChk('qAutoFit', true); setVal('qMinFont', 14); setVal('qReserve', 320);
   setVal('mechX', '50%'); setVal('mechY', '60%');
@@ -2101,8 +2126,9 @@ if($('resetBtn')) $('resetBtn').addEventListener('click', ()=>{
 let autoTimer = null;
 function scheduleAuto(){
   if(!$('autoUpdate') || !$('autoUpdate').checked) return;
-  clearTimeout(autoTimer); autoTimer = setTimeout(applyPreview, 250);
+  clearTimeout(autoTimer); autoTimer = setTimeout(applyPreview, 300);
 }
+// Слушаем изменения в панели настроек
 document.addEventListener('input', (e)=>{ if(e.target.closest('.pane.left')) scheduleAuto(); });
 document.addEventListener('change', (e)=>{ if(e.target.closest('.pane.left')) scheduleAuto(); });
 
